@@ -8,17 +8,10 @@ class TokenEmbedding(nn.Module):
     def __init__(self, vocab_size, d_model):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, d_model)
-        self.d_model = d_model
 
     def forward(self, token_ids):
-        """
-        Args:
-            token_ids: Tensor of shape [batch_size, seq_len]
-        Returns:
-            Tensor of shape [batch_size, seq_len, d_model]
-        """
-        # TODO: investigate scaling necessity
-        return self.embedding(token_ids) * math.sqrt(self.d_model) # Scaling by sqrt(d_model) is common
+        return self.embedding(token_ids)
+
 
 class PositionalEmbedding(nn.Module):
     def __init__(self, max_seq_len, d_model):
@@ -26,18 +19,9 @@ class PositionalEmbedding(nn.Module):
         self.pos_embedding = nn.Embedding(max_seq_len, d_model)
 
     def forward(self, ctx_size, batch_size, device):
-        """
-        Args:
-            seq_len: Length of the input sequences
-            batch_size: Number of sequences in the batch
-            device: The device tensors are on
-        Returns:
-            Tensor of shape [batch_size, seq_len, d_model]
-        """
-        # TODO: investigate if this is optimal
-        positions = torch.arange(0, ctx_size, dtype=torch.long, device=device).unsqueeze(0) # [1, seq_len]
-        positions_embedded = self.pos_embedding(positions) # [1, seq_len, d_model]
-        return positions_embedded.repeat(batch_size, 1, 1) # [batch_size, seq_len, d_model]
+        positions = torch.arange(0, ctx_size, dtype=torch.long, device=device).unsqueeze(0)
+        positions_embedded = self.pos_embedding(positions)
+        return positions_embedded.repeat(batch_size, 1, 1)
 
 
 class Head(nn.Module):
@@ -139,10 +123,8 @@ class MyTransformerLM(nn.Module):
         batch_size, ctx_len = input_ids.shape
         device = input_ids.device
 
-        tok_emb = self.token_embedding(input_ids)     # [batch_size, seq_len, d_model]
-
-        # TODO: In original script, arange was done here, but now it's in the PosEmbd module, investigate
-        pos_emb = self.positional_embedding(ctx_len, batch_size, device) # [batch_size, seq_len, d_model]
+        tok_emb = self.token_embedding(input_ids)                           # [batch_size, seq_len, d_model]
+        pos_emb = self.positional_embedding(ctx_len, batch_size, device)    # [batch_size, seq_len, d_model]
 
         x = tok_emb + pos_emb # Add token and positional embeddings
         x = self.dropout(x)
