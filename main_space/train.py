@@ -8,15 +8,15 @@ import wandb
 from torch.utils.data import DataLoader
 from tokenizers import Tokenizer  # For loading tokenizer to get special IDs
 
-from main_space.model import MyTransformerLM
-from main_space.data_management import load_and_process_dataset_for_lm, CausalLMTrainingDataset
+from model import MyTransformerLM
+from data_management import load_and_process_dataset_for_lm, CausalLMTrainingDataset
 
 # --- SCRIPT SETTINGS ---
 
 # --- Overall Logging Control ---
 ENABLE_WANDB = True       # Master switch for all W&B interactions
-ENABLE_PROFILER = False    # Master switch for torch.profiler
-CUSTOM_TRACE_HANDLER = False
+ENABLE_PROFILER = True    # Master switch for torch.profiler
+CUSTOM_TRACE_HANDLER = True
 
 # --- W&B Configuration ---
 WANDB_PROJECT_NAME = "self-distill-research"
@@ -28,34 +28,34 @@ WANDB_LOG_GRAPH = True         # For wandb.watch(), log the model graph
 
 # --- PyTorch Profiler Specific Configuration ---
 # (Only used if ENABLE_PROFILER is True and ENABLE_WANDB is True)
-PROFILER_WAIT_STEPS = 2
-PROFILER_WARMUP_STEPS = 2
-PROFILER_ACTIVE_STEPS = 2
-PROFILER_REPEAT_CYCLES = 1      # Total active steps = PROFILER_ACTIVE_STEPS * PROFILER_REPEAT_CYCLES
+PROFILER_WAIT_STEPS = 200
+PROFILER_WARMUP_STEPS = 5
+PROFILER_ACTIVE_STEPS = 5
+PROFILER_REPEAT_CYCLES = 5      # Total active steps = PROFILER_ACTIVE_STEPS * PROFILER_REPEAT_CYCLES
 PROFILER_RECORD_SHAPES = True
 PROFILER_PROFILE_MEMORY = True  # Can be True/False
 PROFILER_WITH_STACK = False     # Set to False by default, as it can be costly
 
 # Model Configuration (passed to MyTransformerLM)
 VOCAB_SIZE = 5000  # Dummy vocab size
-D_MODEL = 128      # Embedding dimension / model dimension
-NUM_HEADS = 4      # Number of attention heads
-NUM_LAYERS = 2     # Number of Transformer blocks
-CTX_LEN = 16   # Max sequence length for dummy data and positional embeddings
+D_MODEL = 512      # Embedding dimension / model dimension
+NUM_HEADS = 16      # Number of attention heads
+NUM_LAYERS = 8     # Number of Transformer blocks
+CTX_LEN = 128   # Max sequence length for dummy data and positional embeddings
 DROPOUT_RATE = 0.1
 
 # Training Configuration
-NUM_ITERATIONS = 1000
-BATCH_SIZE = 32
+NUM_ITERATIONS = int(2e5)
+BATCH_SIZE = 64
 LEARNING_RATE = 1e-4
 SEED = 42  # For reproducibility of data shuffling and other random ops
 
 # --- NEW: Data Configuration ---
-TOKENIZER_PATH = "../dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json"  # IMPORTANT: UPDATE THIS
+TOKENIZER_PATH = os.path.join(os.getcwd(),"dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")  # IMPORTANT: UPDATE THIS
 DATASET_NAME = "wikitext"
 DATASET_CONFIG = "wikitext-103-raw-v1"  # Standard processed version
 # Cache directory for Hugging Face datasets (raw and processed by load_and_process_dataset_for_lm)
-CACHE_DIR = "../dataset_creation/temp_files/cache_hf_datasets"
+CACHE_DIR = os.path.join(os.getcwd(),"/dataset_creation/temp_files/cache_hf_datasets")
 # DataLoader options
 NUM_WORKERS_DATALOADER = 0  # 0 for main process, >0 for multiprocessing. Start with 0 for simplicity/debugging.
 PIN_MEMORY_DATALOADER = True

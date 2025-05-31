@@ -53,13 +53,6 @@ def download_wikitext103_raw(save_path):
 if __name__ == "__main__":
     # Define where you want to save the text files
     # Your tokenizer script can then use these files as input
-    output_directory = "../wikitext103_raw_corpus2"
+    output_directory = os.path.join(os.getcwd(), "dataset_creation/wikitext103_raw_corpus")
     download_wikitext103_raw(save_path=output_directory)
-
-    # Example of how your tokenizer script (tng_02_preprocess_new.py) might use this:
-    # You would set `input_text_file` in your script to something like:
-    # input_text_file = "wikitext103_raw_corpus/wikitext-103-raw-train.txt"
-    print(f"\nTo use this with your script, set 'input_text_file' in 'tng_02_preprocess_new.py'")
-    print(f"For example, for the main_space data:")
-    print(f"input_text_file = \"{os.path.join(output_directory, 'wikitext-103-raw-train.txt')}\"")
 

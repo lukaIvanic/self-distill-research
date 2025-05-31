@@ -8,11 +8,11 @@ from itertools import chain
 import argparse  # For command-line options in __main__
 
 # --- Constants (Defaults, can be overridden by args in __main__) ---
-DEFAULT_TOKENIZER_PATH = "../dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json"  # IMPORTANT: Update this path
+DEFAULT_TOKENIZER_PATH = os.path.join(os.getcwd(), "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")  # IMPORTANT: Update this path
 DEFAULT_MAX_SEQ_LEN = 1024
 DEFAULT_DATASET_NAME = "wikitext"
 DEFAULT_DATASET_CONFIG = "wikitext-103-raw-v1" # Raw version has less pre-processing
-DEFAULT_CACHE_DIR = "../dataset_creation/temp_files/cache_hf_datasets"  # Cache for HuggingFace datasets library
+DEFAULT_CACHE_DIR = os.path.join(os.getcwd(), "dataset_creation/temp_files/cache_hf_datasets")  # Cache for HuggingFace datasets library
 
 
 def load_and_process_dataset_for_lm(
@@ -24,14 +24,15 @@ def load_and_process_dataset_for_lm(
         bos_token_id: int,
         eos_token_id: int
 ):
+
+
     if not os.path.exists(tokenizer_path):
         raise FileNotFoundError(f"Tokenizer file not found at {tokenizer_path}.")
 
+
     tokenizer = Tokenizer.from_file(tokenizer_path)
-
-    raw_datasets_cache_path = os.path.join(cache_dir, "raw", dataset_name, dataset_config)
+    raw_datasets_cache_path = os.path.join(DEFAULT_CACHE_DIR, "raw", dataset_name, dataset_config)
     raw_datasets = load_dataset(dataset_name, dataset_config, cache_dir=raw_datasets_cache_path)
-
     def tokenize_individual_docs(examples):
         processed_docs = []
         for doc_text in examples['text']:
@@ -43,8 +44,9 @@ def load_and_process_dataset_for_lm(
             processed_docs.append(token_ids)
         return {"input_ids_per_doc": processed_docs}
 
-    tokenized_docs_cache_base = os.path.join(cache_dir, "tokenized_per_doc", dataset_name, dataset_config)
-    if not os.path.exists(tokenized_docs_cache_base): os.makedirs(tokenized_docs_cache_base)
+    tokenized_docs_cache_base = os.path.join(DEFAULT_CACHE_DIR, "tokenized_per_doc", dataset_name, dataset_config)
+    if not os.path.exists(tokenized_docs_cache_base): 
+      os.makedirs(tokenized_docs_cache_base)
 
     tokenized_datasets = raw_datasets.map(
         tokenize_individual_docs,
@@ -75,10 +77,10 @@ def load_and_process_dataset_for_lm(
 
         return {"input_ids": blocks}
 
-    blocked_datasets_cache_base = os.path.join(cache_dir, "blocked_data", dataset_name, dataset_config,
+    blocked_datasets_cache_base = os.path.join(DEFAULT_CACHE_DIR, "blocked_data", dataset_name, dataset_config,
                                                f"seqlen{max_seq_len}")
     if not os.path.exists(blocked_datasets_cache_base): os.makedirs(blocked_datasets_cache_base)
-
+    print(blocked_datasets_cache_base)
     # For this map to be most effective for caching the final blocks,
     # it should ideally operate on the entire dataset split at once if memory allows,
     # or process it in a way that the cache represents the final blocked structure.

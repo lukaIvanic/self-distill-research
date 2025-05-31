@@ -139,9 +139,12 @@ def inspect_tokenizer_output_detailed(
 
 def main(VOCAB_SIZE):
     # --- Configuration ---
-    VERSION = 4
-    TOKENIZER_FILE_PATH = f"../tokenizer/{VERSION}_raw_wikitext103_bpe_vocab_{VOCAB_SIZE}.json"
-    TRAINING_DATA_FILE = os.path.join("../wikitext103_raw_corpus", "wikitext-103-raw-train.txt")
+    VERSION = 1
+    data_directory = os.path.join(os.getcwd(), "dataset_creation/wikitext103_raw_corpus")
+
+
+    TOKENIZER_FILE_PATH = os.path.join(os.getcwd(), f"dataset_creation/tokenizer/{VERSION}_raw_wikitext103_bpe_vocab_{VOCAB_SIZE}.json")
+    TRAINING_DATA_FILE = os.path.join(os.getcwd(), os.path.join("dataset_creation/wikitext103_raw_corpus", "wikitext-103-raw-train.txt"))
     # TRAINING_DATA_FILE = os.path.join("../wikitext103_raw_corpus", "wikitext-103-raw-validation.txt")
     # TRAINING_DATA_FILE = os.path.join("../wikitext103_raw_corpus", "wikitext-103-raw-test.txt")
     NUMBER_OF_SAMPLES = 20000

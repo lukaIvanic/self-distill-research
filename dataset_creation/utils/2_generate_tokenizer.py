@@ -79,7 +79,7 @@ def train_custom_bpe_tokenizer(
 def main(VOCAB_SIZE):
     # --- Configuration ---
     # This should be the directory where you saved the output from the download script
-    data_directory = "../wikitext103_raw_corpus"
+    data_directory = os.path.join(os.getcwd(), "dataset_creation/wikitext103_raw_corpus")
 
     # List of files to use for main_space. Typically, you train on the main_space set.
     # You can include validation/test if you have a very small dataset, but usually not recommended.
