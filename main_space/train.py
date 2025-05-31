@@ -2,6 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.amp import GradScaler, autocast
 from torch.profiler import profile, record_function, ProfilerActivity
 import wandb
 
@@ -54,6 +55,12 @@ SCHEDULER_TYPE = "cosine"  # Options: "cosine", "inverse_sqrt", "none"
 MIN_LEARNING_RATE = 1e-5
 SEED = 42  # For reproducibility of data shuffling and other random ops
 
+# --- Precision Configuration ---
+PRECISION = "float32"  # Options: "float32", "float16", "bfloat16"
+# "float16" uses GradScaler.
+# "bfloat16" generally doesn't require GradScaler but can be used.
+# Performance and support for bfloat16 depend on the GPU.
+
 # --- NEW: Data Configuration ---
 TOKENIZER_PATH = os.path.join(os.getcwd(),
                               "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")  # IMPORTANT: UPDATE THIS
@@ -99,30 +106,101 @@ def validate_config():
             error_msg = f"ERROR: Tokenizer not found at: '{TOKENIZER_PATH}'."
         raise FileNotFoundError(error_msg)
 
+    valid_precisions = ["float32", "float16", "bfloat16"]
+    if PRECISION not in valid_precisions:
+        raise ValueError(
+            f"Configuration Error: PRECISION must be one of {valid_precisions}, got '{PRECISION}'.")
+
+    if PRECISION != "float32" and not torch.cuda.is_available():
+        print(
+            f"Warning: PRECISION is set to '{PRECISION}' but CUDA is not available. Pytorch will automaticall use float32 on CPU (?).")
+
+    if PRECISION == "bfloat16" and torch.cuda.is_available() and not torch.cuda.is_bf16_supported():
+        print(
+            f"Warning: PRECISION is set to 'bfloat16' but the current CUDA device may not optimally support it or support it at all. Training might be slow or fall back to float32 implicitly by autocast.")
+
     print("Configuration appears valid.")
 
 
 # --- Modified train_step_logic to accept data batch ---
 def train_step_logic(step_num, curr_lr, model, criterion, optimizer, device,
                      batch_input_ids, batch_target_ids,  # Directly supplied
-                     log_to_wandb_flag, wandb_run_obj, profiler_obj=None):
+                     log_to_wandb_flag, wandb_run_obj, profiler_obj=None,
+                     use_amp=False, torch_dtype=torch.float32, scaler=None
+                     ):
     model.train()
 
-    # --- Forward Pass ---
-    with record_function("forward_pass"):
-        logits = model(batch_input_ids)
+    # --- Print dtypes at the beginning of the step ---
+    if (step_num + 1) % (WANDB_LOG_FREQ_METRICS * 20) == 0:  # Log less frequently
+        print(f"\n--- Step {step_num + 1} Dtype Check (Before Autocast) ---")
+        print(f"batch_input_ids.dtype: {batch_input_ids.dtype}")
+        # Check a model parameter (e.g., first parameter of first layer)
+        # This will show the model's storage dtype.
+        sample_param = next(model.parameters())
+        print(f"Sample model parameter dtype: {sample_param.dtype}")
+        print(f"Expected autocast dtype: {torch_dtype if use_amp else 'N/A (float32 expected)'}")
+        print(f"use_amp: {use_amp}, device.type: {device.type}")
 
-    # --- Loss Calculation ---
-    with record_function("loss_calculation"):
-        loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
+    with autocast(device_type=device.type, enabled=use_amp, dtype=torch_dtype if use_amp else None):
+
+        if (step_num + 1) % (WANDB_LOG_FREQ_METRICS * 20) == 0 and use_amp:  # Only log if amp is active
+            print(f"--- Step {step_num + 1} Dtype Check (Inside Autocast) ---")
+            # Input to the model (might still be original if model itself does casting or it's an embedding lookup)
+            # but let's check after any potential initial model ops if possible
+            # For now, let's check the input to the first linear layer if easily accessible, or logits.
+
+        with record_function("forward_pass"):
+            logits = model(batch_input_ids)
+
+        if (step_num + 1) % (WANDB_LOG_FREQ_METRICS * 20) == 0 and use_amp:
+            # Check dtype of model output (logits)
+            print(f"Logits dtype (inside autocast): {logits.dtype}")
+
+
+        with record_function("loss_calculation"):
+            loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
+
+        if (step_num + 1) % (WANDB_LOG_FREQ_METRICS * 20) == 0 and use_amp:
+            # Loss dtype
+            print(f"Loss dtype (inside autocast): {loss.dtype}")
+
+        # --- After Autocast ---
+        # loss.item() will be float64, loss itself will be float32 if autocast was disabled
+        # or if the loss computation output was float32 (CrossEntropy often outputs float32)
+    if (step_num + 1) % (WANDB_LOG_FREQ_METRICS * 20) == 0:
+        print(f"Loss dtype (after autocast block, before scaling): {loss.dtype}")
 
     # --- Backward Pass & Optimization ---
     with record_function("optimizer_zero_grad"):
         optimizer.zero_grad(set_to_none=True)
-    with record_function("backward_pass"):
-        loss.backward()
-    with record_function("optimizer_step"):
-        optimizer.step()
+
+    if scaler:
+        with record_function("scaler_backward_pass"):
+            scaler.scale(loss).backward()
+
+        # Optional: Gradient Clipping (unscale first)
+        # scaler.unscale_(optimizer)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
+        with record_function("scaler_optimizer_step"):
+            scaler.step(optimizer)
+
+        with record_function("scaler_update"):
+            scaler.update()
+    elif use_amp:
+        with record_function("backward_pass"):
+            loss.backward()
+            # Optional: Gradient Clipping
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        with record_function("optimizer_step"):
+            optimizer.step()
+    else:  # float32, no AMP
+        with record_function("backward_pass"):
+            loss.backward()
+        # Optional: Gradient Clipping
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        with record_function("optimizer_step"):
+            optimizer.step()
 
     # --- W&B Logging (if enabled and it's a logging step) ---
     if log_to_wandb_flag and wandb_run_obj and (step_num + 1) % WANDB_LOG_FREQ_METRICS == 0:
@@ -131,6 +209,10 @@ def train_step_logic(step_num, curr_lr, model, criterion, optimizer, device,
             "iteration": step_num + 1,
             "learning_rate": curr_lr  # Fixed for now
         }
+
+        if scaler:
+            log_data["grad_scaler_scale"] = scaler.get_scale()
+
         if torch.cuda.is_available():
             log_data["gpu_mem_alloc_mb"] = torch.cuda.memory_allocated(device) / (1024 ** 2)
             log_data["gpu_mem_reserved_mb"] = torch.cuda.memory_reserved(device) / (1024 ** 2)
@@ -227,13 +309,42 @@ def main():
     wandb_run = None
     final_vocab_size = None  # Will be updated by get_dataloaders
 
-    if ENABLE_WANDB:
-        # Initialize W&B (config dict will be prepared after vocab_size is known)
-        pass  # Defer init until vocab_size is known
-
     # --- Device Setup ---
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
+
+    # --- Precision Setup ---
+    use_amp = False
+    chosen_torch_dtype = torch.float32  # Default
+    scaler = None
+
+    if device.type == 'cuda':
+        if PRECISION == "float16":
+            use_amp = True
+            chosen_torch_dtype = torch.float16
+            scaler = GradScaler(device='cuda', enabled=use_amp)
+            print(f"Using Automatic Mixed Precision with dtype: {chosen_torch_dtype} and GradScaler.")
+        elif PRECISION == "bfloat16":
+            # bfloat16 is supported on Ampere and newer GPUs.
+            # autocast will handle it. GradScaler is optional but can be used.
+            # For simplicity, we'll enable AMP and let autocast handle the dtype.
+            # Check for bfloat16 support for better robustness
+            if torch.cuda.is_bf16_supported():
+                use_amp = True
+                chosen_torch_dtype = torch.bfloat16
+                # scaler = GradScaler() # Optional for bfloat16, often not needed.
+                print(f"Using Automatic Mixed Precision with dtype: {chosen_torch_dtype}.")
+            else:
+                print("Warning: bfloat16 is selected but not supported on this CUDA device. Falling back to float32.")
+                # PRECISION will remain "bfloat16" in config, but execution is float32
+                # chosen_torch_dtype remains torch.float32
+        elif PRECISION == "float32":
+            print("Using float32 precision. No AMP.")
+        else:
+            print(f"Warning: Unknown PRECISION '{PRECISION}'. Falling back to float32.")
+    else:  # CPU
+        if PRECISION != "float32":
+            print(f"Warning: PRECISION '{PRECISION}' selected but running on CPU. Using float32.")
 
     # --- DataLoaders Setup ---
     print("Setting up DataLoaders...")
@@ -278,6 +389,8 @@ def main():
             "scheduler_type": SCHEDULER_TYPE,
             "warmup_steps": WARMUP_STEPS,
             "min_lr_cosine": MIN_LEARNING_RATE,
+            "precision": PRECISION,
+            "effective_precision": str(chosen_torch_dtype)
 
         }
         if ENABLE_PROFILER:  # Add profiler specific configs if it's enabled
@@ -393,7 +506,11 @@ def main():
                 loss_val = train_step_logic(
                     step_num, current_actual_lr, model, criterion, optimizer, device,
                     input_ids, target_ids,
-                    ENABLE_WANDB, wandb_run, profiler_obj=prof)
+                    ENABLE_WANDB, wandb_run, profiler_obj=prof,
+                    use_amp=use_amp,
+                    torch_dtype=chosen_torch_dtype,
+                    scaler=scaler
+                )
                 current_step += 1
                 if (step_num + 1) % (WANDB_LOG_FREQ_METRICS * 20) == 0:
                     print(
@@ -419,7 +536,7 @@ def main():
                 warmup_steps=WARMUP_STEPS,
                 total_training_steps=TRAIN_STEPS,
                 scheduler_type=SCHEDULER_TYPE,
-                min_lr=MIN_LEARNING_RATE
+                min_lr=MIN_LEARNING_RATE,
             )
             for param_group in optimizer.param_groups:
                 param_group['lr'] = current_actual_lr
@@ -432,7 +549,11 @@ def main():
             loss_val = train_step_logic(
                 step_num, current_actual_lr, model, criterion, optimizer, device,
                 input_ids, target_ids,
-                ENABLE_WANDB, wandb_run, profiler_obj=None)
+                ENABLE_WANDB, wandb_run, profiler_obj=None,
+                use_amp=use_amp,
+                torch_dtype=chosen_torch_dtype,
+                scaler=scaler
+            )
             current_step += 1
             if (step_num + 1) % (WANDB_LOG_FREQ_METRICS * 20) == 0:
                 print(f"Step [{step_num + 1}/{TRAIN_STEPS}], Loss: {loss_val:.4f}, LR: {current_actual_lr:.2e}")

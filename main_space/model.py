@@ -74,13 +74,13 @@ class FeedForward(nn.Module):
 
         self.fc1 = nn.Linear(d_model, 4 * d_model)
         # TODO: probably use GELU
-        self.reluActivation = nn.ReLU()
+        self.geluActivation = nn.GELU()
         self.feed_forward_lay_second = nn.Linear(4 * d_model, d_model)  # This is the one we need to scale
         self.dropout_layer = nn.Dropout(p_dropout)
 
     def forward(self, x):
         x = self.fc1(x)
-        x = self.reluActivation(x)
+        x = self.geluActivation(x)
         x = self.feed_forward_lay_second(x)
         x = self.dropout_layer(x)
         return x
