@@ -4,6 +4,7 @@ from torch.nn import functional as F
 
 import math
 
+
 class TokenEmbedding(nn.Module):
     def __init__(self, vocab_size, d_model):
         super().__init__()
@@ -48,48 +49,54 @@ class Head(nn.Module):
         out = wei @ v
         return out
 
+
 class MultiHeadAttention(nn.Module):
     def __init__(self, n_heads, head_size, d_model, p_dropout, ctx_size):
         super().__init__()
-        self.heads = nn.ModuleList([Head(d_model = d_model,
-                                         head_size = head_size,
-                                         p_dropout = p_dropout,
-                                         ctx_size = ctx_size) for _ in range(n_heads)])
-        self.proj = nn.Linear(head_size * n_heads, d_model)
+        self.heads = nn.ModuleList([Head(d_model=d_model,
+                                         head_size=head_size,
+                                         p_dropout=p_dropout,
+                                         ctx_size=ctx_size) for _ in range(n_heads)])
+        self.output_proj_mha = nn.Linear(head_size * n_heads, d_model)
         # TODO investigate where to put in dropout
         self.dropout = nn.Dropout(p_dropout)  # Use global dropout
 
     def forward(self, x):
         out = torch.cat([h(x) for h in self.heads], dim=-1)
-        out = self.dropout(self.proj(out))
+        out = self.dropout(self.output_proj_mha(out))
         return out
+
 
 class FeedForward(nn.Module):
     def __init__(self, d_model, p_dropout):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(d_model, 4 * d_model),
-            # TODO: probably use GELU
-            nn.ReLU(),
-            nn.Linear(4 * d_model, d_model),
-            nn.Dropout(p_dropout)  # Use global dropout
-        )
+
+
+        self.fc1 = nn.Linear(d_model, 4 * d_model)
+        # TODO: probably use GELU
+        self.reluActivation = nn.ReLU()
+        self.feed_forward_lay_second = nn.Linear(4 * d_model, d_model)  # This is the one we need to scale
+        self.dropout_layer = nn.Dropout(p_dropout)
 
     def forward(self, x):
-        return self.net(x)
+        x = self.fc1(x)
+        x = self.reluActivation(x)
+        x = self.feed_forward_lay_second(x)
+        x = self.dropout_layer(x)
+        return x
 
 
 class TransBlock(nn.Module):
     def __init__(self, d_model, n_heads, p_dropout, ctx_size):
         super().__init__()
         head_size = d_model // n_heads
-        self.sa = MultiHeadAttention(n_heads = n_heads,
-                                     head_size = head_size,
-                                     d_model = d_model,
-                                     p_dropout = p_dropout,
-                                     ctx_size = ctx_size)
-        self.ffwd = FeedForward(d_model = d_model,
-                                p_dropout = p_dropout)
+        self.sa = MultiHeadAttention(n_heads=n_heads,
+                                     head_size=head_size,
+                                     d_model=d_model,
+                                     p_dropout=p_dropout,
+                                     ctx_size=ctx_size)
+        self.ffwd = FeedForward(d_model=d_model,
+                                p_dropout=p_dropout)
         # TODO: residuals and layer norms, their ordering
         self.ln1 = nn.LayerNorm(d_model)
         self.ln2 = nn.LayerNorm(d_model)
@@ -103,37 +110,84 @@ class TransBlock(nn.Module):
 class MyTransformerLM(nn.Module):
     def __init__(self, vocab_size, d_model, n_heads, n_layers, ctx_size, p_dropout):
         super().__init__()
+
+        self.initial_std = d_model**-0.5
+
         self.token_embedding = TokenEmbedding(vocab_size, d_model)
         self.positional_embedding = PositionalEmbedding(ctx_size, d_model)
         self.dropout = nn.Dropout(p_dropout)
 
         self.transformer_blocks = nn.ModuleList(
-            [TransBlock(d_model = d_model,
-                        n_heads = n_heads,
-                        p_dropout = p_dropout,
-                        ctx_size = ctx_size) for _ in range(n_layers)]
+            [TransBlock(d_model=d_model,
+                        n_heads=n_heads,
+                        p_dropout=p_dropout,
+                        ctx_size=ctx_size) for _ in range(n_layers)]
         )
-        self.final_norm = nn.LayerNorm(d_model) # Common to have a final LayerNorm
+        self.final_norm = nn.LayerNorm(d_model)  # Common to have a final LayerNorm
         self.lm_head = nn.Linear(d_model, vocab_size)
+        self.lm_head.weight = self.token_embedding.embedding.weight
 
-        # TODO: make embedding and de-embedding layers the same
-        # TODO: apply custom initialization of weights (prob N(0, 0.02)
+        self.apply(self._init_default_weights)
+
+        # Classifier head
+        self.lm_head.weight = self.token_embedding.embedding.weight
+        if self.lm_head.bias is not None:
+            torch.nn.init.zeros_(self.lm_head.bias)
+
+        # 3. Apply special scaled initialization for residual contributors
+        self._apply_scaled_residual_initialization(n_layers)
+
+
+
+    def _init_default_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=self.initial_std)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=self.initial_std)
+        elif isinstance(module, nn.LayerNorm):
+            torch.nn.init.zeros_(module.bias)
+            torch.nn.init.ones_(module.weight)
+
+    def _apply_scaled_residual_initialization(self, n_layers):
+
+
+        scale_factor = math.sqrt(2.0 * n_layers)
+        scaled_std = self.initial_std / scale_factor
+
+        for block in self.transformer_blocks:
+            if hasattr(block.sa, 'output_proj_mha') and isinstance(block.sa.output_proj_mha, nn.Linear):
+                torch.nn.init.normal_(block.sa.output_proj_mha.weight, mean=0.0, std=scaled_std)
+                if block.sa.output_proj_mha.bias is not None:
+                    torch.nn.init.zeros_(block.sa.output_proj_mha.bias)
+            else:
+                print(f"Warning: Could not find 'output_projection' in TransBlock's SelfAttention.")
+
+            if hasattr(block.ffwd, 'feed_forward_lay_second') and isinstance(block.ffwd.feed_forward_lay_second, nn.Linear):
+                torch.nn.init.normal_(block.ffwd.feed_forward_lay_second.weight, mean=0.0, std=scaled_std)
+                if block.ffwd.feed_forward_lay_second.bias is not None:
+                    torch.nn.init.zeros_(block.ffwd.feed_forward_lay_second.bias)
+            else:
+                print(f"Warning: Could not find 'feed_forward_lay_second' in TransBlock's FeedForward.")
 
     def forward(self, input_ids):
         batch_size, ctx_len = input_ids.shape
         device = input_ids.device
 
-        tok_emb = self.token_embedding(input_ids)                           # [batch_size, seq_len, d_model]
-        pos_emb = self.positional_embedding(ctx_len, batch_size, device)    # [batch_size, seq_len, d_model]
+        tok_emb = self.token_embedding(input_ids)  # [batch_size, seq_len, d_model]
+        pos_emb = self.positional_embedding(ctx_len, batch_size, device)  # [batch_size, seq_len, d_model]
 
-        x = tok_emb + pos_emb # Add token and positional embeddings
+        x = tok_emb + pos_emb  # Add token and positional embeddings
         x = self.dropout(x)
         for block in self.transformer_blocks:
-            x = block(x) # Pass the mask to each block
+            x = block(x)  # Pass the mask to each block
 
         x = self.final_norm(x)
         logits = self.lm_head(x)
         return logits
+
+
 
 if __name__ == '__main__':
     # Quick test of the model structure

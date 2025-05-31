@@ -6,56 +6,61 @@ from torch.profiler import profile, record_function, ProfilerActivity
 import wandb
 
 from torch.utils.data import DataLoader
-from tokenizers import Tokenizer  # For loading tokenizer to get special IDs
+from tokenizers import Tokenizer
 
 from model import MyTransformerLM
 from data_management import load_and_process_dataset_for_lm, CausalLMTrainingDataset
+from train_utils import calculate_lr
 
 # --- SCRIPT SETTINGS ---
 
 # --- Overall Logging Control ---
-ENABLE_WANDB = True       # Master switch for all W&B interactions
-ENABLE_PROFILER = True    # Master switch for torch.profiler
-CUSTOM_TRACE_HANDLER = True
+ENABLE_WANDB = True  # Master switch for all W&B interactions
+ENABLE_PROFILER = False  # Master switch for torch.profiler
+CUSTOM_TRACE_HANDLER = False
 
 # --- W&B Configuration ---
 WANDB_PROJECT_NAME = "self-distill-research"
 WANDB_ENTITY = "luka_newbie"
-WANDB_WATCH_LEVEL = "all"    # Options: "all", "gradients", "parameters", "none"
-WANDB_LOG_FREQ_MODEL_WATCH = 100 # Frequency for wandb.watch (if not "none") (e.g., every 100 steps)
-WANDB_LOG_FREQ_METRICS = 10    # Frequency for wandb.log() for loss, etc. (e.g., every 10 steps)
-WANDB_LOG_GRAPH = True         # For wandb.watch(), log the model graph
+WANDB_WATCH_LEVEL = "all"  # Options: "all", "gradients", "parameters", "none"
+WANDB_LOG_FREQ_MODEL_WATCH = 100  # Frequency for wandb.watch (if not "none") (e.g., every 100 steps)
+WANDB_LOG_FREQ_METRICS = 10  # Frequency for wandb.log() for loss, etc. (e.g., every 10 steps)
+WANDB_LOG_GRAPH = True  # For wandb.watch(), log the model graph
 
 # --- PyTorch Profiler Specific Configuration ---
 # (Only used if ENABLE_PROFILER is True and ENABLE_WANDB is True)
 PROFILER_WAIT_STEPS = 200
 PROFILER_WARMUP_STEPS = 5
 PROFILER_ACTIVE_STEPS = 5
-PROFILER_REPEAT_CYCLES = 5      # Total active steps = PROFILER_ACTIVE_STEPS * PROFILER_REPEAT_CYCLES
+PROFILER_REPEAT_CYCLES = 5  # Total active steps = PROFILER_ACTIVE_STEPS * PROFILER_REPEAT_CYCLES
 PROFILER_RECORD_SHAPES = True
 PROFILER_PROFILE_MEMORY = True  # Can be True/False
-PROFILER_WITH_STACK = False     # Set to False by default, as it can be costly
+PROFILER_WITH_STACK = False  # Set to False by default, as it can be costly
 
 # Model Configuration (passed to MyTransformerLM)
 VOCAB_SIZE = 5000  # Dummy vocab size
-D_MODEL = 512      # Embedding dimension / model dimension
-NUM_HEADS = 16      # Number of attention heads
-NUM_LAYERS = 8     # Number of Transformer blocks
-CTX_LEN = 128   # Max sequence length for dummy data and positional embeddings
-DROPOUT_RATE = 0.1
+D_MODEL = 1  # Embedding dimension / model dimension
+NUM_HEADS = 1  # Number of attention heads
+NUM_LAYERS = 1  # Number of Transformer blocks
+CTX_LEN = 16  # Max sequence length for dummy data and positional embeddings
+DROPOUT_RATE = 0.0
 
 # Training Configuration
-NUM_ITERATIONS = int(2e5)
-BATCH_SIZE = 64
+TRAIN_STEPS = int(1e3)
+WARMUP_STEPS = int(1e2)
+BATCH_SIZE = 1
 LEARNING_RATE = 1e-4
+SCHEDULER_TYPE = "cosine"  # Options: "cosine", "inverse_sqrt", "none"
+MIN_LEARNING_RATE = 1e-5
 SEED = 42  # For reproducibility of data shuffling and other random ops
 
 # --- NEW: Data Configuration ---
-TOKENIZER_PATH = os.path.join(os.getcwd(),"dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")  # IMPORTANT: UPDATE THIS
+TOKENIZER_PATH = os.path.join(os.getcwd(),
+                              "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")  # IMPORTANT: UPDATE THIS
 DATASET_NAME = "wikitext"
 DATASET_CONFIG = "wikitext-103-raw-v1"  # Standard processed version
 # Cache directory for Hugging Face datasets (raw and processed by load_and_process_dataset_for_lm)
-CACHE_DIR = os.path.join(os.getcwd(),"/dataset_creation/temp_files/cache_hf_datasets")
+CACHE_DIR = os.path.join(os.getcwd(), "/dataset_creation/temp_files/cache_hf_datasets")
 # DataLoader options
 NUM_WORKERS_DATALOADER = 0  # 0 for main process, >0 for multiprocessing. Start with 0 for simplicity/debugging.
 PIN_MEMORY_DATALOADER = True
@@ -85,7 +90,6 @@ def validate_config():
         raise ValueError(
             f"Configuration Error: WANDB_WATCH_LEVEL must be one of {valid_watch_levels}, got '{WANDB_WATCH_LEVEL}'.")
 
-
     if not os.path.exists(TOKENIZER_PATH):
         # Try to give a more helpful message if it's the default path
         if TOKENIZER_PATH == "path/to/your/tokenizer.json":
@@ -99,15 +103,10 @@ def validate_config():
 
 
 # --- Modified train_step_logic to accept data batch ---
-def train_step_logic(step_num, model, criterion, optimizer, device,
+def train_step_logic(step_num, curr_lr, model, criterion, optimizer, device,
                      batch_input_ids, batch_target_ids,  # Directly supplied
                      log_to_wandb_flag, wandb_run_obj, profiler_obj=None):
     model.train()
-
-    # batch_input_ids and batch_target_ids are already on the correct device from DataLoader if pin_memory=True
-    # Or need to be moved if not:
-    # batch_input_ids = batch_input_ids.to(device)
-    # batch_target_ids = batch_target_ids.to(device)
 
     # --- Forward Pass ---
     with record_function("forward_pass"):
@@ -130,7 +129,7 @@ def train_step_logic(step_num, model, criterion, optimizer, device,
         log_data = {
             "train_loss": loss.item(),
             "iteration": step_num + 1,
-            "learning_rate": LEARNING_RATE  # Fixed for now
+            "learning_rate": curr_lr  # Fixed for now
         }
         if torch.cuda.is_available():
             log_data["gpu_mem_alloc_mb"] = torch.cuda.memory_allocated(device) / (1024 ** 2)
@@ -142,8 +141,6 @@ def train_step_logic(step_num, model, criterion, optimizer, device,
         profiler_obj.step()
 
     return loss.item()
-
-
 
 
 # --- NEW: Function to get DataLoaders ---
@@ -202,7 +199,6 @@ def get_dataloaders(tokenizer_path, ctx_len, dataset_name, dataset_config, cache
 
 
 def get_profiler_trace_handler(wandb_run_dir):
-
     if not ENABLE_PROFILER:
         raise ValueError("In getTraceHandler, ENABLE_PROFILER is False.")
 
@@ -222,7 +218,6 @@ def get_profiler_trace_handler(wandb_run_dir):
         return on_trace_ready_handler
     else:
         return wandb.profiler.torch_trace_handler()
-
 
 
 def main():
@@ -276,10 +271,14 @@ def main():
         config_dict = {
             "vocab_size": final_vocab_size, "d_model": D_MODEL, "num_heads": NUM_HEADS,
             "num_layers": NUM_LAYERS, "ctx_len": CTX_LEN, "dropout_rate": DROPOUT_RATE,
-            "num_iterations": NUM_ITERATIONS, "batch_size": BATCH_SIZE, "learning_rate": LEARNING_RATE,
+            "num_iterations": TRAIN_STEPS, "batch_size": BATCH_SIZE, "learning_rate": LEARNING_RATE,
             "seed": SEED, "dataset_name": DATASET_NAME, "dataset_config": DATASET_CONFIG,
             "enable_profiler": ENABLE_PROFILER, "wandb_watch_level": WANDB_WATCH_LEVEL,
             "log_freq_metrics": WANDB_LOG_FREQ_METRICS, "log_freq_model_watch": WANDB_LOG_FREQ_MODEL_WATCH,
+            "scheduler_type": SCHEDULER_TYPE,
+            "warmup_steps": WARMUP_STEPS,
+            "min_lr_cosine": MIN_LEARNING_RATE,
+
         }
         if ENABLE_PROFILER:  # Add profiler specific configs if it's enabled
             config_dict.update({
@@ -310,8 +309,6 @@ def main():
     else:
         print("W&B is DISABLED by configuration.")
 
-
-
     # --- 3. Model Instantiation ---
     model = MyTransformerLM(
         vocab_size=final_vocab_size,  # Use actual vocab size
@@ -337,7 +334,7 @@ def main():
     # For LM, CrossEntropyLoss ignores index -100 by default, which our DataLoader uses for label padding.
     criterion = nn.CrossEntropyLoss()
 
-    print(f"\nStarting training for {NUM_ITERATIONS} iterations...")
+    print(f"\nStarting training for {TRAIN_STEPS} iterations...")
     print(f"Train loader has ~{len(train_loader)} batches of size {BATCH_SIZE}.")
 
     train_iter = iter(train_loader)
@@ -367,7 +364,7 @@ def main():
                 profile_memory=PROFILER_PROFILE_MEMORY,
                 with_stack=PROFILER_WITH_STACK
         ) as prof:
-            for step_num in range(NUM_ITERATIONS):
+            for step_num in range(TRAIN_STEPS):
                 try:
                     batch = next(train_iter)
                 except StopIteration:
@@ -380,22 +377,34 @@ def main():
                 target_ids = batch['labels'].to(device,
                                                 non_blocking=True if PIN_MEMORY_DATALOADER and device.type == "cuda" else False)
 
+                # --- Learning Rate Scheduling ---
+                current_actual_lr = calculate_lr(
+                    current_step=step_num,
+                    peak_lr=LEARNING_RATE,  # LEARNING_RATE from config is the peak LR
+                    warmup_steps=WARMUP_STEPS,
+                    total_training_steps=TRAIN_STEPS,
+                    scheduler_type=SCHEDULER_TYPE,
+                    min_lr=MIN_LEARNING_RATE
+                )
 
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = current_actual_lr
 
                 loss_val = train_step_logic(
-                    step_num, model, criterion, optimizer, device,
+                    step_num, current_actual_lr, model, criterion, optimizer, device,
                     input_ids, target_ids,
                     ENABLE_WANDB, wandb_run, profiler_obj=prof)
                 current_step += 1
                 if (step_num + 1) % (WANDB_LOG_FREQ_METRICS * 20) == 0:
-                    print(f"Step [{step_num + 1}/{NUM_ITERATIONS}], Loss: {loss_val:.4f} (Profiler Active)")
+                    print(
+                        f"Step [{step_num + 1}/{TRAIN_STEPS}], Loss: {loss_val:.4f}, LR: {current_actual_lr:.2e} (Profiler Active)")
     else:  # Profiler disabled or W&B issue
         if ENABLE_PROFILER:
             print("Profiler was enabled but conditions not met (e.g. W&B disabled). Running without profiler.")
         else:
             print("Profiler is DISABLED. Running standard training loop.")
 
-        for step_num in range(NUM_ITERATIONS):
+        for step_num in range(TRAIN_STEPS):
             try:
                 batch = next(train_iter)
             except StopIteration:
@@ -403,18 +412,30 @@ def main():
                 train_iter = iter(train_loader)
                 batch = next(train_iter)
 
+                # --- Learning Rate Scheduling ---
+            current_actual_lr = calculate_lr(
+                current_step=step_num,
+                peak_lr=LEARNING_RATE,  # LEARNING_RATE from config is the peak LR
+                warmup_steps=WARMUP_STEPS,
+                total_training_steps=TRAIN_STEPS,
+                scheduler_type=SCHEDULER_TYPE,
+                min_lr=MIN_LEARNING_RATE
+            )
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = current_actual_lr
+
             input_ids = batch['input_ids'].to(device,
                                               non_blocking=True if PIN_MEMORY_DATALOADER and device.type == "cuda" else False)
             target_ids = batch['labels'].to(device,
                                             non_blocking=True if PIN_MEMORY_DATALOADER and device.type == "cuda" else False)
 
             loss_val = train_step_logic(
-                step_num, model, criterion, optimizer, device,
+                step_num, current_actual_lr, model, criterion, optimizer, device,
                 input_ids, target_ids,
                 ENABLE_WANDB, wandb_run, profiler_obj=None)
             current_step += 1
             if (step_num + 1) % (WANDB_LOG_FREQ_METRICS * 20) == 0:
-                print(f"Step [{step_num + 1}/{NUM_ITERATIONS}], Loss: {loss_val:.4f}")
+                print(f"Step [{step_num + 1}/{TRAIN_STEPS}], Loss: {loss_val:.4f}, LR: {current_actual_lr:.2e}")
 
     print(f"\nTraining completed after {current_step} steps.")
 
@@ -467,8 +488,14 @@ if __name__ == "__main__":
         main()
     except ValueError as e:  # Catch config validation errors
         print(f"CONFIGURATION ERROR: {e}")
+        import traceback
+
+        traceback.print_exc()
     except ImportError as e:
         print(f"IMPORT ERROR: {e}")
+        import traceback
+
+        traceback.print_exc()
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         # For debugging, you might want to re-raise or print traceback
