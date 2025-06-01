@@ -40,23 +40,38 @@ PROFILER_WITH_STACK = False  # Set to False by default, as it can be costly
 
 # Model Configuration (passed to MyTransformerLM)
 VOCAB_SIZE = 5000  # Dummy vocab size
-D_MODEL = 1  # Embedding dimension / model dimension
-NUM_HEADS = 1  # Number of attention heads
-NUM_LAYERS = 1  # Number of Transformer blocks
-CTX_LEN = 16  # Max sequence length for dummy data and positional embeddings
-DROPOUT_RATE = 0.0
+D_MODEL = 92  # Embedding dimension / model dimension
+NUM_HEADS = 8  # Number of attention heads
+NUM_LAYERS = 10  # Number of Transformer blocks
+CTX_LEN = 32  # Max sequence length for dummy data and positional embeddings
+DROPOUT_RATE = 0.1
+
+
+"""
+Testing for 3k steps:
+lr | batch_size
+1e-3 | 256
+1e-3 | 512
+1e-3 | 1024
+3e-4 | 256
+3e-4 | 512
+3e-4 | 1024
+1e-4 | 256
+1e-4 | 512
+1e-4 | 1024
+"""
 
 # Training Configuration
-TRAIN_STEPS = int(1e3)
-WARMUP_STEPS = int(1e2)
-BATCH_SIZE = 1
-LEARNING_RATE = 1e-4
+WARMUP_STEPS = int(1e4)
+TRAIN_STEPS = int(1e5)
+LEARNING_RATE = 1e-3
+BATCH_SIZE = 256
 SCHEDULER_TYPE = "cosine"  # Options: "cosine", "inverse_sqrt", "none"
 MIN_LEARNING_RATE = 1e-5
 SEED = 42  # For reproducibility of data shuffling and other random ops
 
 # --- Precision Configuration ---
-PRECISION = "float32"  # Options: "float32", "float16", "bfloat16"
+PRECISION = "bfloat16"  # Options: "float32", "float16", "bfloat16"
 # "float16" uses GradScaler.
 # "bfloat16" generally doesn't require GradScaler but can be used.
 # Performance and support for bfloat16 depend on the GPU.
