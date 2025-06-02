@@ -1,60 +1,117 @@
 import math
 
+import torch
+from torch.amp import autocast
+from torch.profiler import record_function
+
+import wandb
+
+from main_space.utils.log_utils import step_log
+from main_space.utils.hyperparameter_utils import usesAmpOrNot, calculate_lr
 
 
 
-def calculate_lr(current_step, peak_lr, warmup_steps, total_training_steps,
-                 scheduler_type, min_lr):
-    """
-    Calculates learning rate with linear warmup and cosine or inverse square root decay.
-
-    Args:
-        current_step (int): Current training step (0-indexed).
-        peak_lr (float): The maximum learning rate (config.LEARNING_RATE).
-        warmup_steps (int): Number of warmup steps.
-        total_training_steps (int): Total number of training steps (config.NUM_ITERATIONS).
-        scheduler_type (str): "cosine", "inverse_sqrt", or "none".
-        min_lr (float): For cosine decay, last iter learning rate.
-
-    Returns:
-        float: The calculated learning rate for the current step.
-    """
-
-    if warmup_steps > total_training_steps:
-        raise ValueError(
-            f"Warm up steps are higher than total training steps. Warm up: {warmup_steps}, Total training steps: {total_training_steps}")
-
-    if current_step >= total_training_steps:
-        raise ValueError(
-            f"Current step went over total training steps. Current step: {current_step}, Total training steps: {total_training_steps}")
+def set_step_lr(lr, optimizer):
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
 
 
-    if current_step < warmup_steps:
-        return peak_lr * ((current_step + 1) / warmup_steps)
+def make_train_step(step_num, model, criterion, optimizer, device,
+                    batch_input_ids, batch_target_ids,  # Directly supplied
+                    log_to_wandb_flag, wandb_run_obj, profiler_obj, torch_dtype, scaler,
+                    wandbConfig, trainingConfig, PRECISION
+                    ):
 
-    if scheduler_type == "linear":
-        return peak_lr
+    current_actual_lr = calculate_lr(
+        current_step=step_num,
+        peak_lr=trainingConfig.learning_rate,  # LEARNING_RATE from config is the peak LR
+        warmup_steps=trainingConfig.warmup_steps,
+        total_training_steps=trainingConfig.train_steps,
+        scheduler_type=trainingConfig.scheduler_type,
+        min_lr=trainingConfig.min_learning_rate
+    )
+
+    set_step_lr(current_actual_lr, optimizer)
+
+    model.train()
+
+    with autocast(device_type=device.type, enabled=usesAmpOrNot(PRECISION), dtype=torch_dtype):
+
+        with record_function("forward_pass"):
+            logits = model(batch_input_ids)
+
+        with record_function("loss_calculation"):
+            loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
+
+    with record_function("optimizer_zero_grad"):
+        optimizer.zero_grad(set_to_none=True)
 
 
-    x = current_step - warmup_steps
-    max_x = total_training_steps - warmup_steps
+    if PRECISION == 'float16':
+        with record_function("scaler_backward_pass"):
+            scaler.scale(loss).backward()
 
+        with record_function("scaler_optimizer_step"):
+            scaler.step(optimizer)
 
-    if scheduler_type == "cosine":
-        cos_base = (math.cos((x*math.pi)/max_x) + 1) / 2.0
-        lr = cos_base*(peak_lr - min_lr) + min_lr
-
-        return lr
-
-    elif scheduler_type == "inverse_sqrt":
-
-
-        min_to_peak_ratio_sq = (min_lr / peak_lr) ** 2
-
-        k = (min_to_peak_ratio_sq * max_x) / (1 - min_to_peak_ratio_sq)
-
-        lr = peak_lr * math.sqrt(k / (x + k))
-
-        return max(min_lr, min(lr, peak_lr))
+        with record_function("scaler_update"):
+            scaler.update()
     else:
-        raise ValueError(f"Unknown scheduler_type: {scheduler_type}")
+        with record_function("backward_pass"):
+            loss.backward()
+        with record_function("optimizer_step"):
+            optimizer.step()
+
+    loss_val = loss.item()
+
+    step_log(step_num=step_num,
+             loss=loss,
+             curr_lr=current_actual_lr,
+             scaler=scaler,
+             wandb=wandb,
+             device=device,
+             profiler_obj=profiler_obj,
+             log_to_wandb_flag=log_to_wandb_flag,
+             wandb_run_obj=wandb_run_obj,
+             WANDB_LOG_FREQ_METRICS=wandbConfig.wandb_log_freq_metrics,
+             TRAIN_STEPS=trainingConfig.train_steps,
+             loss_val=loss_val,
+             current_actual_lr=current_actual_lr)
+
+
+
+def validation_run(model, val_loader, criterion, device, wandb, wandb_run, ENABLE_WANDB, PIN_MEMORY_DATALOADER):
+    if ENABLE_WANDB and wandb_run:
+        # --- Optional: Validation pass after training ---
+        if val_loader:
+            print("\nRunning validation...")
+            model.eval()
+            total_val_loss = 0
+            val_batches = 0
+            with torch.no_grad():
+                for batch in val_loader:
+                    input_ids = batch['input_ids'].to(device,
+                                                      non_blocking=True if PIN_MEMORY_DATALOADER and device.type == "cuda" else False)
+                    target_ids = batch['labels'].to(device,
+                                                    non_blocking=True if PIN_MEMORY_DATALOADER and device.type == "cuda" else False)
+
+                    logits = model(input_ids)
+                    loss = criterion(logits.view(-1, logits.size(-1)), target_ids.view(-1))
+                    total_val_loss += loss.item()
+                    val_batches += 1
+            if val_batches > 0:
+                avg_val_loss = total_val_loss / val_batches
+                print(f"Average Validation Loss: {avg_val_loss:.4f}")
+                wandb.summary["avg_val_loss"] = avg_val_loss
+            else:
+                print("No batches in validation loader.")
+        else:
+            print("No validation loader provided.")
+
+        print("Finishing W&B run...")
+        wandb.finish()
+        print("W&B run finished.")
+    elif ENABLE_WANDB and not wandb_run:
+        print("W&B enabled but init failed. No W&B run to finish.")
+    else:
+        print("W&B disabled. No W&B run to finish.")

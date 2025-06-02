@@ -1,7 +1,59 @@
 import os
 import torch
 
-def validate_config(ENABLE_WANDB, wandb, ENABLE_PROFILER, WANDB_WATCH_LEVEL, TOKENIZER_PATH, PRECISION):
+from torch.amp import GradScaler
+
+import wandb
+
+
+def strict_error_enable_tip():
+    return ("To make misconfigurations like this one a fatal error"
+            " instead of a warning, please set 'STRICT_ERROR' in train.py to True.")
+
+
+def strict_error_disable_tip():
+    return ("To allow the script to continue with a warning (if supported),"
+            " set 'STRICT_ERROR' in train.py to False. Note that this might affect other "
+            "error throwing mechanisms.")
+
+
+def validatePrecision(PRECISION, STRICT_ERROR):
+    valid_precisions = ["float32", "float16", "bfloat16"]
+    if PRECISION not in valid_precisions:
+        raise ValueError(
+            f"Script Configuration Error: PRECISION must be one of {valid_precisions}, got '{PRECISION}'.")
+
+    if PRECISION == "bfloat16":
+        if torch.cuda.is_available():
+            if torch.cuda.is_bf16_supported(including_emulation=False):
+                print(f"Using natively supported non-emulated bfloat16 precision on CUDA.")
+                pass
+            elif torch.cuda.is_bf16_supported(including_emulation=True):
+                if STRICT_ERROR:
+                    raise ValueError("Precision bfloat16 was selected, and CUDA was available, "
+                                     "but only emulation is supported. "
+                                     + strict_error_disable_tip()
+                                     )
+                else:
+                    print("WARNING: Precision bfloat16 was selected, and CUDA was available, "
+                          "but only emulation is supported. "
+                          "The script will continue, but emulation is very sub-optimal. "
+                          + strict_error_enable_tip())
+            else:
+                raise ValueError("Precision bfloat16 was selected, and CUDA was available, "
+                                 "but the device does not support bfloat16 (standard or emulated).")
+        else:
+            if STRICT_ERROR:
+                raise ValueError("Precision bfloat16 was selected, but CUDA was not available, "
+                                 "emulation may or may not be supported. "
+                                 + strict_error_disable_tip())
+            else:
+                print("WARNING: Precision bfloat16 was selected, but CUDA was not available, "
+                      "emulation may or may not be supported on given device (likely CPU). "
+                      + strict_error_enable_tip())
+
+
+def validate_config(device, ENABLE_WANDB, ENABLE_PROFILER, WANDB_WATCH_LEVEL, TOKENIZER_PATH, PRECISION, STRICT_ERROR):
     print("Validating configuration...")
     if ENABLE_WANDB and wandb is None:
         raise ImportError(
@@ -32,17 +84,5 @@ def validate_config(ENABLE_WANDB, wandb, ENABLE_PROFILER, WANDB_WATCH_LEVEL, TOK
             error_msg = f"ERROR: Tokenizer not found at: '{TOKENIZER_PATH}'."
         raise FileNotFoundError(error_msg)
 
-    valid_precisions = ["float32", "float16", "bfloat16"]
-    if PRECISION not in valid_precisions:
-        raise ValueError(
-            f"Configuration Error: PRECISION must be one of {valid_precisions}, got '{PRECISION}'.")
-
-    if PRECISION != "float32" and not torch.cuda.is_available():
-        print(
-            f"Warning: PRECISION is set to '{PRECISION}' but CUDA is not available. Pytorch will automaticall use float32 on CPU (?).")
-
-    if PRECISION == "bfloat16" and torch.cuda.is_available() and not torch.cuda.is_bf16_supported():
-        print(
-            f"Warning: PRECISION is set to 'bfloat16' but the current CUDA device may not optimally support it or support it at all. Training might be slow or fall back to float32 implicitly by autocast.")
-
+    validatePrecision(PRECISION, STRICT_ERROR=STRICT_ERROR)
     print("Configuration appears valid.")

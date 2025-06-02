@@ -189,7 +189,6 @@ class MyTransformerLM(nn.Module):
         for block in self.transformer_blocks:
             x = block(x)  # Pass the mask to each block
 
-        x = self.final_norm(x)
         logits = self.lm_head(x)
         return logits
 
