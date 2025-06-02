@@ -1,6 +1,8 @@
 import os
 import random
 from tokenizers import Tokenizer
+from matplotlib import pyplot as plt
+import numpy as np
 
 
 def inspect_tokenizer_output_detailed(
@@ -8,6 +10,7 @@ def inspect_tokenizer_output_detailed(
         training_data_file,
         num_samples,
         max_save_lines,
+        save_out_files,
         original_output_file,
         piped_tokens_output_file,
         decoded_output_file  # New file for fully decoded text
@@ -72,8 +75,8 @@ def inspect_tokenizer_output_detailed(
 
         original_line = " " + original_line
 
-
-        original_texts_to_save.append(original_line)
+        if save_out_files:
+            original_texts_to_save.append(original_line)
 
         # Tokenize
         encoded = tokenizer.encode(original_line)
@@ -83,48 +86,49 @@ def inspect_tokenizer_output_detailed(
         totalTokens += len(tokens)
 
 
-        # Create piped version (shows raw tokens with Ġ)
-        piped_version = "|".join(tokens)
-        piped_version = piped_version.replace('Ġ', ' ')
-        piped_tokens_to_save.append(piped_version)
+        if save_out_files:
+            # Create piped version (shows raw tokens with Ġ)
+            piped_version = "|".join(tokens)
+            piped_version = piped_version.replace('Ġ', ' ')
+            piped_tokens_to_save.append(piped_version)
 
+            # Detokenize using the tokenizer's decode method
+            # This is the crucial step for getting natural-looking text with correct spaces
+            detokenized_line = tokenizer.decode(encoded.ids)
+            decoded_texts_to_save.append(detokenized_line)
 
-
-
-        # Detokenize using the tokenizer's decode method
-        # This is the crucial step for getting natural-looking text with correct spaces
-        detokenized_line = tokenizer.decode(encoded.ids)
-        decoded_texts_to_save.append(detokenized_line)
-
-        if i < 0:  # Print a few examples to console for immediate feedback
-            print(f"\nSample {i + 1}:")
-            print(f"  Original    : {original_line}")
-            print(f"  Tokens      : {tokens}")
-            print(f"  Piped Tokens: {piped_version}")  # This will have Ġ
-            print(f"  Decoded Text: {detokenized_line}")  # This should look like normal language
+            if i < 0:  # Print a few examples to console for immediate feedback
+                print(f"\nSample {i + 1}:")
+                print(f"  Original    : {original_line}")
+                print(f"  Tokens      : {tokens}")
+                print(f"  Piped Tokens: {piped_version}")  # This will have Ġ
+                print(f"  Decoded Text: {detokenized_line}")  # This should look like normal language
 
     # Save to files, ensuring UTF-8 encoding
     try:
-        with open(original_output_file, "w", encoding="utf-8") as f:
-            for i, text in enumerate(original_texts_to_save):
-                if i == max_save_lines:
-                    break
-                f.write(text + "\n")
-        print(f"\nSaved original sampled text to: {os.path.abspath(original_output_file)}")
+        if save_out_files:
+            with open(original_output_file, "w", encoding="utf-8") as f:
+                for i, text in enumerate(original_texts_to_save):
+                    if i == max_save_lines:
+                        break
+                    f.write(text + "\n")
+            print(f"\nSaved original sampled text to: {os.path.abspath(original_output_file)}")
 
-        with open(piped_tokens_output_file, "w", encoding="utf-8") as f:
-            for i, text in enumerate(piped_tokens_to_save):
-                if i == max_save_lines:
-                    break
-                f.write(text + "\n")
-        print(f"Saved piped tokenized text ('Ġ' replaced with ' ') to: {os.path.abspath(piped_tokens_output_file)}")
+        if save_out_files:
+            with open(piped_tokens_output_file, "w", encoding="utf-8") as f:
+                for i, text in enumerate(piped_tokens_to_save):
+                    if i == max_save_lines:
+                        break
+                    f.write(text + "\n")
+            print(f"Saved piped tokenized text ('Ġ' replaced with ' ') to: {os.path.abspath(piped_tokens_output_file)}")
 
-        with open(decoded_output_file, "w", encoding="utf-8") as f:
-            for i, text in enumerate(decoded_texts_to_save):
-                if i == max_save_lines:
-                    break
-                f.write(text + "\n")
-        print(f"Saved fully decoded text (normal spaces) to: {os.path.abspath(decoded_output_file)}")
+        if save_out_files:
+            with open(decoded_output_file, "w", encoding="utf-8") as f:
+                for i, text in enumerate(decoded_texts_to_save):
+                    if i == max_save_lines:
+                        break
+                    f.write(text + "\n")
+            print(f"Saved fully decoded text (normal spaces) to: {os.path.abspath(decoded_output_file)}")
 
     except Exception as e:
         print(f"Error saving output files: {e}")
@@ -133,33 +137,74 @@ def inspect_tokenizer_output_detailed(
     print(f"Total words in sampled text: {totalWords}")
     print(f"Total tokens in sampled text: {totalTokens}")
     if totalWords > 0:
-        print(f"Token to word ratio (lower is better): {totalTokens/totalWords:.3f}")
+        tokens_to_word_ratio = totalTokens/totalWords
+        print(f"Token to word ratio (lower is better): {tokens_to_word_ratio:.3f}")
+        return tokens_to_word_ratio
     else:
+        return 0.0
         print(f"Can't calculate token to word ratio because there are {totalWords} total words.")
 
-def main(VOCAB_SIZE):
+
+
+def main(VOCAB_SIZE, save_out_files=True):
     # --- Configuration ---
-    VERSION = 1
-    data_directory = os.path.join(os.getcwd(), "dataset_creation/wikitext103_raw_corpus")
+    VERSION = 4
+    working_utils_dir = os.path.join(os.getcwd(), "dataset_creation/temp_files")
+
 
 
     TOKENIZER_FILE_PATH = os.path.join(os.getcwd(), f"dataset_creation/tokenizer/{VERSION}_raw_wikitext103_bpe_vocab_{VOCAB_SIZE}.json")
     TRAINING_DATA_FILE = os.path.join(os.getcwd(), os.path.join("dataset_creation/wikitext103_raw_corpus", "wikitext-103-raw-train.txt"))
     # TRAINING_DATA_FILE = os.path.join("../wikitext103_raw_corpus", "wikitext-103-raw-validation.txt")
     # TRAINING_DATA_FILE = os.path.join("../wikitext103_raw_corpus", "wikitext-103-raw-test.txt")
-    NUMBER_OF_SAMPLES = 20000
+    NUMBER_OF_SAMPLES = 2000000
     MAX_SAVE_LINES = 100
 
+
     # --- Run inspection ---
-    inspect_tokenizer_output_detailed(
+    return inspect_tokenizer_output_detailed(
         tokenizer_path=TOKENIZER_FILE_PATH,
         training_data_file=TRAINING_DATA_FILE,
         num_samples=NUMBER_OF_SAMPLES,
         max_save_lines=MAX_SAVE_LINES,
-        original_output_file="../temp_files/1_sampled_original_text.txt",
-        piped_tokens_output_file="../temp_files/2_sampled_piped_tokens.txt",
-        decoded_output_file="../temp_files/3_sampled_decoded_text.txt"
+        save_out_files=save_out_files,
+        original_output_file=os.path.join(working_utils_dir, "1_sampled_original_text.txt"),
+        piped_tokens_output_file=os.path.join(working_utils_dir, "../temp_files/2_sampled_piped_tokens.txt"),
+        decoded_output_file=os.path.join(working_utils_dir, "../temp_files/3_sampled_decoded_text.txt")
     )
+
+
+# x is vocab size, y is token-to-word ratio
+def plotRatio(x, y):
+    x = np.array(x)
+    y = np.array(y)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, y, marker='o', linestyle='-')
+    plt.title('Token-to-Word Ratio vs. Vocabulary Size')
+    plt.xlabel('Vocabulary Size ')
+    plt.ylabel('Token-to-Word Ratio')
+    plt.grid(True)
+    plt.xticks(vocab_corpus)
+
+    output_dir = os.path.join(os.getcwd(), "dataset_creation/temp_files")
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        print(f"Created directory: {output_dir}")
+    else:
+        print(f"Directory {output_dir} already exists or was confirmed.")
+
+    # Save graph to png
+    file_name = "token_to_word_ratio_graph.png"
+    file_path = os.path.join(output_dir, file_name)
+    plt.savefig(file_path)
+    print(f"Graph saved to {file_path}")
+
+    # Display graph
+    print("Displaying graph...")
+    plt.show()
+    print("Graph display window closed.")
+
 
 if __name__ == "__main__":
 
@@ -169,5 +214,14 @@ if __name__ == "__main__":
     #    main(vs)
 
 
-    for vs in [1000, 2000, 3000, 5000, 8000, 12000]:
-        main(vs)
+    vocab_corpus = [1000, 2000, 3000, 5000, 8000, 12000]
+    ratios = [0.0] * len(vocab_corpus)
+
+    for i, vs in enumerate(vocab_corpus):
+        token_to_word_ratio = main(vs, save_out_files=False)
+        ratios[i] = token_to_word_ratio
+
+    plotRatio(vocab_corpus, ratios)
+
+
+
