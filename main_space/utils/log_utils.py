@@ -5,6 +5,7 @@ from torch.profiler import profile, ProfilerActivity
 import wandb
 
 
+
 def get_profiler_trace_handler(ENABLE_PROFILER, CUSTOM_TRACE_HANDLER, wandb_run_dir):
     if not ENABLE_PROFILER:
         raise ValueError("In getTraceHandler, ENABLE_PROFILER is False.")
@@ -59,17 +60,22 @@ def get_profiler_or_null_context(ENABLE_PROFILER, ENABLE_WANDB, wandb_run, devic
     return profiler_context
 
 
-def enable_wandb_watch(model, ENABLE_WANDB, wandb_run, WANDB_WATCH_LEVEL, WANDB_LOG_FREQ_MODEL_WATCH,
-                       WANDB_LOG_GRAPH):
-    if ENABLE_WANDB and wandb_run and WANDB_WATCH_LEVEL != "none":
-        print(f"Setting up W&B model watch (Level: {WANDB_WATCH_LEVEL}, Freq: {WANDB_LOG_FREQ_MODEL_WATCH})...")
+def enable_wandb_watch(config, model, wandb_run):
+    wandbConfig = config.wandbConfig
 
-        wandb.watch(model, log=WANDB_WATCH_LEVEL, log_freq=WANDB_LOG_FREQ_MODEL_WATCH, log_graph=WANDB_LOG_GRAPH)
+    if wandbConfig.is_wandb_enabled and wandb_run and wandbConfig.wandb_watch_level != "none":
+        print(f"Setting up W&B model watch (Level: {wandbConfig.wandb_watch_level}, Freq: {wandbConfig.wandb_log_freq_model_watch})...")
+
+        wandb.watch(model, log=wandbConfig.wandb_watch_level, log_freq=wandbConfig.wandb_log_freq_model_watch, log_graph=wandbConfig.does_wandb_log_graph)
 
 
-def initialize_wandb(wandbConfig, WANDB_PROJECT_NAME, WANDB_ENTITY,
-                     trainingConfig, DATASET_NAME, DATASET_CONFIG,
-                     ENABLE_PROFILER, PRECISION, precision_dtype):
+def initialize_wandb(config):
+
+
+    wandbConfig = config.wandbConfig
+    trainingConfig = config.trainingConfig
+    datasetConfig = config.datasetConfig
+
     if not wandbConfig.is_wandb_enabled:
         return None
 
@@ -77,26 +83,33 @@ def initialize_wandb(wandbConfig, WANDB_PROJECT_NAME, WANDB_ENTITY,
 
     # TODO: Add number of parameters in model
 
-    print(f"Attempting to initialize W&B (Project: {WANDB_PROJECT_NAME}, Entity: {WANDB_ENTITY})...")
+    print(f"Attempting to initialize W&B (Project: {wandbConfig.wandb_project_name}, Entity: {wandbConfig.wandb_entity})...")
+    # TODO: Sigurno se moze ovo napravit da sve parametre iz settingsa se uzmu, ili napravit helper funkciju
     config_dict = {
-        "vocab_size": hyperParamConfig.vocab_size, "d_model": hyperParamConfig.d_model,
+        "vocab_size": hyperParamConfig.vocab_size,
+        "d_model": hyperParamConfig.d_model,
         "num_heads": hyperParamConfig.num_heads,
-        "num_layers": hyperParamConfig.num_layers, "ctx_len": hyperParamConfig.ctx_len,
+        "num_layers": hyperParamConfig.num_layers,
+        "ctx_len": hyperParamConfig.ctx_len,
         "dropout_rate": hyperParamConfig.dropout_rate,
-        "num_iterations": trainingConfig.train_steps, "batch_size": trainingConfig.batch_size,
+        "num_iterations": trainingConfig.train_steps,
+        "batch_size": trainingConfig.batch_size,
         "learning_rate": trainingConfig.learning_rate,
-        "seed": trainingConfig.seed, "dataset_name": DATASET_NAME, "dataset_config": DATASET_CONFIG,
-        "enable_profiler": ENABLE_PROFILER, "wandb_watch_level": wandbConfig.wandb_watch_level,
+        "seed": trainingConfig.seed,
+        "dataset_name": datasetConfig.dataset_name,
+        "dataset_config": datasetConfig.dataset_config,
+        "enable_profiler": wandbConfig.is_profiler_enabled,
+        "wandb_watch_level": wandbConfig.wandb_watch_level,
         "log_freq_metrics": wandbConfig.wandb_log_freq_metrics,
         "log_freq_model_watch": wandbConfig.wandb_log_freq_model_watch,
         "scheduler_type": trainingConfig.scheduler_type,
         "warmup_steps": trainingConfig.warmup_steps,
         "min_lr_cosine": trainingConfig.min_learning_rate,
-        "precision": PRECISION,
-        "effective_precision": str(precision_dtype)
+        "precision": trainingConfig.training_precision,
+        "effective_precision": str(trainingConfig.precision_dtype)
 
     }
-    if ENABLE_PROFILER:  # Add profiler specific configs if it's enabled
+    if wandbConfig.is_profiler_enabled:
 
         profilerConfig = wandbConfig.profilerConfig
         config_dict.update({
@@ -111,8 +124,8 @@ def initialize_wandb(wandbConfig, WANDB_PROJECT_NAME, WANDB_ENTITY,
 
     try:
         wandb_run = wandb.init(
-            project=WANDB_PROJECT_NAME,
-            entity=WANDB_ENTITY,
+            project=wandbConfig.wandb_project_name,
+            entity=wandbConfig.wandb_entity,
             config=config_dict
         )
         if wandb_run:
@@ -123,21 +136,24 @@ def initialize_wandb(wandbConfig, WANDB_PROJECT_NAME, WANDB_ENTITY,
         print(f"Error initializing W&B: {e}. W&B features will be disabled.")
 
 
-def step_log(step_num, loss, curr_lr, scaler, device, wandb, profiler_obj, log_to_wandb_flag, wandb_run_obj,
-             WANDB_LOG_FREQ_METRICS, TRAIN_STEPS, loss_val, current_actual_lr):
-    if (step_num + 1) % (WANDB_LOG_FREQ_METRICS * 20) == 0:
-        print(
-            f"Step [{step_num + 1}/{TRAIN_STEPS}], Loss: {loss_val:.4f}, LR: {current_actual_lr:.2e} (Profiler Active)")
+def step_log(config, step_num, loss, curr_lr, device, wandb, profiler_obj, wandb_run_obj, loss_val, current_actual_lr):
 
-    if log_to_wandb_flag and wandb_run_obj and (step_num + 1) % WANDB_LOG_FREQ_METRICS == 0:
+    wandbConfig = config.wandbConfig
+    trainingConfig = config.trainingConfig
+
+    if (step_num + 1) % (wandbConfig.wandb_log_freq_metrics) == 0:
+        print(
+            f"Step [{step_num + 1}/{trainingConfig.train_steps}], Loss: {loss_val:.4f}, LR: {current_actual_lr:.2e}")
+
+    if wandbConfig.is_wandb_enabled and wandb_run_obj and (step_num + 1) % wandbConfig.wandb_log_freq_metrics == 0:
         log_data = {
             "train_loss": loss.item(),
             "iteration": step_num + 1,
             "learning_rate": curr_lr
         }
 
-        if scaler:
-            log_data["grad_scaler_scale"] = scaler.get_scale()
+        if trainingConfig.scaler:
+            log_data["grad_scaler_scale"] = trainingConfig.scaler.get_scale()
 
         if torch.cuda.is_available():
             log_data["gpu_mem_alloc_mb"] = torch.cuda.memory_allocated(device) / (1024 ** 2)

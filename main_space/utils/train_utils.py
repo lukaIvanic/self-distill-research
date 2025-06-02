@@ -1,4 +1,3 @@
-import math
 
 import torch
 from torch.amp import autocast
@@ -16,11 +15,13 @@ def set_step_lr(lr, optimizer):
         param_group['lr'] = lr
 
 
-def make_train_step(step_num, model, criterion, optimizer, device,
+def make_train_step(config, step_num, model, criterion, optimizer, device,
                     batch_input_ids, batch_target_ids,  # Directly supplied
-                    log_to_wandb_flag, wandb_run_obj, profiler_obj, torch_dtype, scaler,
-                    wandbConfig, trainingConfig, PRECISION
+                    wandb_run_obj, profiler_obj
                     ):
+
+    trainingConfig = config.trainingConfig
+
 
     current_actual_lr = calculate_lr(
         current_step=step_num,
@@ -35,7 +36,7 @@ def make_train_step(step_num, model, criterion, optimizer, device,
 
     model.train()
 
-    with autocast(device_type=device.type, enabled=usesAmpOrNot(PRECISION), dtype=torch_dtype):
+    with autocast(device_type=device.type, enabled=usesAmpOrNot(trainingConfig.training_precision), dtype=trainingConfig.precision_dtype):
 
         with record_function("forward_pass"):
             logits = model(batch_input_ids)
@@ -47,7 +48,9 @@ def make_train_step(step_num, model, criterion, optimizer, device,
         optimizer.zero_grad(set_to_none=True)
 
 
-    if PRECISION == 'float16':
+    if trainingConfig.training_precision == 'float16':
+        scaler = trainingConfig.scaler
+
         with record_function("scaler_backward_pass"):
             scaler.scale(loss).backward()
 
@@ -64,17 +67,14 @@ def make_train_step(step_num, model, criterion, optimizer, device,
 
     loss_val = loss.item()
 
-    step_log(step_num=step_num,
+    step_log(config=config,
+             step_num=step_num,
              loss=loss,
              curr_lr=current_actual_lr,
-             scaler=scaler,
              wandb=wandb,
              device=device,
              profiler_obj=profiler_obj,
-             log_to_wandb_flag=log_to_wandb_flag,
              wandb_run_obj=wandb_run_obj,
-             WANDB_LOG_FREQ_METRICS=wandbConfig.wandb_log_freq_metrics,
-             TRAIN_STEPS=trainingConfig.train_steps,
              loss_val=loss_val,
              current_actual_lr=current_actual_lr)
 

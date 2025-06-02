@@ -1,4 +1,14 @@
+import os
+
+import torch
+from torch.amp import GradScaler
+
 class WandbConfig:
+
+    class LoggingConfig:
+        def __init__(self):
+            self.strict_error = True
+
     class ProfilerConfig:
         def __init__(self):
             self.profiler_wait_steps = 200
@@ -20,11 +30,24 @@ class WandbConfig:
         self.wandb_project_name = "self-distill-research"
         self.wandb_entity = "luka_newbie"
         self.wandb_watch_level = "all"  # Options: "all", "gradients", "parameters", "none"
-        self.wandb_log_freq_model_watch = 100  # Frequency for wandb.watch
-        self.wandb_log_freq_metrics = 10  # Frequency for wandb.log() for loss, lr, etc.
+        self.wandb_log_freq_model_watch = 1000  # Frequency for wandb.watch
+        self.wandb_log_freq_metrics = 200  # Frequency for wandb.log() for loss, lr, etc.
         self.does_wandb_log_graph = False  # Enable to get 'model' tab in wandb
 
         self.profilerConfig = self.ProfilerConfig()
+        self.loggingConfig = self.LoggingConfig()
+
+
+class DatasetConfig:
+    def __init__(self):
+
+        self.tokenizer_path  = os.path.join(os.getcwd(), "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")
+        self.cache_dir = os.path.join(os.getcwd(), "/dataset_creation/temp_files/cache_hf_datasets")
+        self.dataset_name = "wikitext"
+        self.dataset_config = "wikitext-103-raw-v1"
+        self.num_workers_dataloader = 0
+        self.pin_memory_dataloader = True
+        self.vocab_size_from_tokenizer = True
 
 
 class TrainingConfig:
@@ -61,12 +84,33 @@ class TrainingConfig:
         self.batch_size = 1
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
         self.min_learning_rate = 1e-5
+        self.training_precision = "float32"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
         self.seed = 42
 
+        self.precision_dtype = None
+        self.initialize_precision()
+        self.scaler = None
+
         self.hyperParamConfig = self.HyperparameterConfig()
+
+
+    def initialize_precision(self):
+        if self.training_precision == "float16":
+            self.precision_dtype = torch.float16
+            self.scaler = GradScaler(device='cuda', enabled=True)
+            print(f"Using Automatic Mixed Precision with dtype: {self.precision_dtype} and GradScaler.")
+        elif self.training_precision == "bfloat16":
+            self.precision_dtype = torch.bfloat16
+            self.scaler = None
+            print(f"Using Automatic Mixed Precision with dtype: {self.precision_dtype}.")
+        elif self.training_precision == "float32":
+            self.precision_dtype = torch.float32
+            self.scaler = None
+            print("Using float32 precision.")
 
 class Config:
 
     def __init__(self):
         self.wandbConfig = WandbConfig()
+        self.datasetConfig = DatasetConfig()
         self.trainingConfig = TrainingConfig()

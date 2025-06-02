@@ -7,6 +7,8 @@ from tokenizers import Tokenizer
 from itertools import chain
 import argparse  # For command-line options in __main__
 
+from main_space.settings import Config
+
 # --- Constants (Defaults, can be overridden by args in __main__) ---
 DEFAULT_TOKENIZER_PATH = os.path.join(os.getcwd(), "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")  # IMPORTANT: Update this path
 DEFAULT_MAX_SEQ_LEN = 1024
@@ -16,23 +18,21 @@ DEFAULT_CACHE_DIR = os.path.join(os.getcwd(), "dataset_creation/temp_files/cache
 
 
 def load_and_process_dataset_for_lm(
-        tokenizer_path: str,
-        max_seq_len: int,
-        dataset_name: str,
-        dataset_config: str,
-        cache_dir: str,
+        config: Config,
         bos_token_id: int,
         eos_token_id: int
 ):
 
+    dataset_config = config.datasetConfig
+    hyperparamConfig = config.trainingConfig.hyperParamConfig
 
-    if not os.path.exists(tokenizer_path):
-        raise FileNotFoundError(f"Tokenizer file not found at {tokenizer_path}.")
+    if not os.path.exists(dataset_config.tokenizer_path):
+        raise FileNotFoundError(f"Tokenizer file not found at {dataset_config.tokenizer_path}.")
 
 
-    tokenizer = Tokenizer.from_file(tokenizer_path)
-    raw_datasets_cache_path = os.path.join(DEFAULT_CACHE_DIR, "raw", dataset_name, dataset_config)
-    raw_datasets = load_dataset(dataset_name, dataset_config, cache_dir=raw_datasets_cache_path)
+    tokenizer = Tokenizer.from_file(dataset_config.tokenizer_path)
+    raw_datasets_cache_path = os.path.join(DEFAULT_CACHE_DIR, "raw", dataset_config.dataset_name, dataset_config.dataset_config)
+    raw_datasets = load_dataset(dataset_config.dataset_name, dataset_config.dataset_config, cache_dir=raw_datasets_cache_path)
     def tokenize_individual_docs(examples):
         processed_docs = []
         for doc_text in examples['text']:
@@ -44,7 +44,7 @@ def load_and_process_dataset_for_lm(
             processed_docs.append(token_ids)
         return {"input_ids_per_doc": processed_docs}
 
-    tokenized_docs_cache_base = os.path.join(DEFAULT_CACHE_DIR, "tokenized_per_doc", dataset_name, dataset_config)
+    tokenized_docs_cache_base = os.path.join(DEFAULT_CACHE_DIR, "tokenized_per_doc", dataset_config.dataset_name, dataset_config.dataset_config)
     if not os.path.exists(tokenized_docs_cache_base): 
       os.makedirs(tokenized_docs_cache_base)
 
@@ -70,15 +70,15 @@ def load_and_process_dataset_for_lm(
         # The last partial block will be included.
         # The CustomTorchLMDataset will handle padding for this last block if it's shorter.
         blocks = []
-        for i in range(0, total_length, max_seq_len):
-            block = concatenated_ids[i: i + max_seq_len]
+        for i in range(0, total_length, hyperparamConfig.ctx_len):
+            block = concatenated_ids[i: i + hyperparamConfig.ctx_len]
             if block:  # Ensure block is not empty
                 blocks.append(block)
 
         return {"input_ids": blocks}
 
-    blocked_datasets_cache_base = os.path.join(DEFAULT_CACHE_DIR, "blocked_data", dataset_name, dataset_config,
-                                               f"seqlen{max_seq_len}")
+    blocked_datasets_cache_base = os.path.join(DEFAULT_CACHE_DIR, "blocked_data", dataset_config.dataset_name, dataset_config.dataset_config,
+                                               f"seqlen{hyperparamConfig.ctx_len}")
     if not os.path.exists(blocked_datasets_cache_base): os.makedirs(blocked_datasets_cache_base)
     print(blocked_datasets_cache_base)
     # For this map to be most effective for caching the final blocks,
@@ -100,7 +100,7 @@ def load_and_process_dataset_for_lm(
         # Given Wikitext-103's size, this should be acceptable.
         input_columns=["input_ids_per_doc"],  # Specify input column
         remove_columns=["input_ids_per_doc"],  # Remove the intermediate column
-        desc=f"Grouping texts into blocks of {max_seq_len}",
+        desc=f"Grouping texts into blocks of {hyperparamConfig.ctx_len}",
         cache_file_names={k: os.path.join(blocked_datasets_cache_base, f"{k}.arrow") for k in
                           tokenized_datasets.keys()},
         load_from_cache_file=True
