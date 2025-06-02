@@ -11,14 +11,14 @@ from tokenizers import Tokenizer
 
 from model import MyTransformerLM
 from data_management import load_and_process_dataset_for_lm, CausalLMTrainingDataset
-from train_utils import calculate_lr
+from main_space.utils.train_utils import calculate_lr
+from main_space.utils.checker_utils import validate_config
 
 # --- SCRIPT SETTINGS ---
-
 # --- Overall Logging Control ---
 ENABLE_WANDB = True  # Master switch for all W&B interactions
-ENABLE_PROFILER = False  # Master switch for torch.profiler
-CUSTOM_TRACE_HANDLER = False
+ENABLE_PROFILER = True  # Master switch for torch.profiler
+CUSTOM_TRACE_HANDLER = True  # Choose dir where pytorch.profiler will save measured metrics
 
 # --- W&B Configuration ---
 WANDB_PROJECT_NAME = "self-distill-research"
@@ -26,7 +26,7 @@ WANDB_ENTITY = "luka_newbie"
 WANDB_WATCH_LEVEL = "all"  # Options: "all", "gradients", "parameters", "none"
 WANDB_LOG_FREQ_MODEL_WATCH = 100  # Frequency for wandb.watch (if not "none") (e.g., every 100 steps)
 WANDB_LOG_FREQ_METRICS = 10  # Frequency for wandb.log() for loss, etc. (e.g., every 10 steps)
-WANDB_LOG_GRAPH = True  # For wandb.watch(), log the model graph
+WANDB_LOG_GRAPH = False  # For wandb.watch(), log the model graph
 
 # --- PyTorch Profiler Specific Configuration ---
 # (Only used if ENABLE_PROFILER is True and ENABLE_WANDB is True)
@@ -36,16 +36,16 @@ PROFILER_ACTIVE_STEPS = 5
 PROFILER_REPEAT_CYCLES = 5  # Total active steps = PROFILER_ACTIVE_STEPS * PROFILER_REPEAT_CYCLES
 PROFILER_RECORD_SHAPES = True
 PROFILER_PROFILE_MEMORY = True  # Can be True/False
+PROFILER_WITH_OPS = True
 PROFILER_WITH_STACK = False  # Set to False by default, as it can be costly
 
 # Model Configuration (passed to MyTransformerLM)
 VOCAB_SIZE = 5000  # Dummy vocab size
-D_MODEL = 92  # Embedding dimension / model dimension
-NUM_HEADS = 8  # Number of attention heads
-NUM_LAYERS = 10  # Number of Transformer blocks
+D_MODEL = 1  # Embedding dimension / model dimension
+NUM_HEADS = 1  # Number of attention heads
+NUM_LAYERS = 1  # Number of Transformer blocks
 CTX_LEN = 32  # Max sequence length for dummy data and positional embeddings
 DROPOUT_RATE = 0.1
-
 
 """
 Testing for 3k steps:
@@ -62,13 +62,13 @@ lr | batch_size
 """
 
 # Training Configuration
-WARMUP_STEPS = int(1e4)
-TRAIN_STEPS = int(1e5)
+WARMUP_STEPS = int(1e2)
+TRAIN_STEPS = int(1e3)
 LEARNING_RATE = 1e-3
-BATCH_SIZE = 256
-SCHEDULER_TYPE = "cosine"  # Options: "cosine", "inverse_sqrt", "none"
+BATCH_SIZE = 1
+SCHEDULER_TYPE = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
 MIN_LEARNING_RATE = 1e-5
-SEED = 42  # For reproducibility of data shuffling and other random ops
+SEED = 42
 
 # --- Precision Configuration ---
 PRECISION = "bfloat16"  # Options: "float32", "float16", "bfloat16"
@@ -76,65 +76,17 @@ PRECISION = "bfloat16"  # Options: "float32", "float16", "bfloat16"
 # "bfloat16" generally doesn't require GradScaler but can be used.
 # Performance and support for bfloat16 depend on the GPU.
 
-# --- NEW: Data Configuration ---
+# --- Data and Tokenizer Configuration ---
 TOKENIZER_PATH = os.path.join(os.getcwd(),
                               "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")  # IMPORTANT: UPDATE THIS
 DATASET_NAME = "wikitext"
-DATASET_CONFIG = "wikitext-103-raw-v1"  # Standard processed version
-# Cache directory for Hugging Face datasets (raw and processed by load_and_process_dataset_for_lm)
+DATASET_CONFIG = "wikitext-103-raw-v1"
 CACHE_DIR = os.path.join(os.getcwd(), "/dataset_creation/temp_files/cache_hf_datasets")
 # DataLoader options
 NUM_WORKERS_DATALOADER = 0  # 0 for main process, >0 for multiprocessing. Start with 0 for simplicity/debugging.
 PIN_MEMORY_DATALOADER = True
 VOCAB_SIZE_FROM_TOKENIZER = True
 
-
-# --- Configuration Validation ---
-def validate_config():
-    print("Validating configuration...")
-    if ENABLE_WANDB and wandb is None:
-        raise ImportError(
-            "W&B is enabled (ENABLE_WANDB=True) but the 'wandb' library is not installed. Please install it: pip install wandb")
-
-    if ENABLE_PROFILER and not ENABLE_WANDB:
-        raise ValueError("Configuration Error: ENABLE_PROFILER is True, but ENABLE_WANDB is False. "
-                         "The current profiler setup relies on W&B for trace handling. "
-                         "If you want to use the profiler, ENABLE_WANDB must also be True.")
-
-    if ENABLE_PROFILER and wandb is not None and not hasattr(wandb.profiler, 'torch_trace_handler'):
-        # This check might be too strict if older wandb versions have different paths
-        # but good for ensuring the expected handler exists.
-        print("Warning: ENABLE_PROFILER is True, but `wandb.profiler.torch_trace_handler` might not be available. "
-              "Ensure your W&B library is up-to-date. Profiling might not work as expected.")
-
-    valid_watch_levels = ["all", "gradients", "parameters", "none"]
-    if WANDB_WATCH_LEVEL not in valid_watch_levels:
-        raise ValueError(
-            f"Configuration Error: WANDB_WATCH_LEVEL must be one of {valid_watch_levels}, got '{WANDB_WATCH_LEVEL}'.")
-
-    if not os.path.exists(TOKENIZER_PATH):
-        # Try to give a more helpful message if it's the default path
-        if TOKENIZER_PATH == "path/to/your/tokenizer.json":
-            error_msg = (f"ERROR: Tokenizer not found at default placeholder path: '{TOKENIZER_PATH}'. "
-                         "Please update TOKENIZER_PATH in the script settings.")
-        else:
-            error_msg = f"ERROR: Tokenizer not found at: '{TOKENIZER_PATH}'."
-        raise FileNotFoundError(error_msg)
-
-    valid_precisions = ["float32", "float16", "bfloat16"]
-    if PRECISION not in valid_precisions:
-        raise ValueError(
-            f"Configuration Error: PRECISION must be one of {valid_precisions}, got '{PRECISION}'.")
-
-    if PRECISION != "float32" and not torch.cuda.is_available():
-        print(
-            f"Warning: PRECISION is set to '{PRECISION}' but CUDA is not available. Pytorch will automaticall use float32 on CPU (?).")
-
-    if PRECISION == "bfloat16" and torch.cuda.is_available() and not torch.cuda.is_bf16_supported():
-        print(
-            f"Warning: PRECISION is set to 'bfloat16' but the current CUDA device may not optimally support it or support it at all. Training might be slow or fall back to float32 implicitly by autocast.")
-
-    print("Configuration appears valid.")
 
 
 # --- Modified train_step_logic to accept data batch ---
@@ -171,7 +123,6 @@ def train_step_logic(step_num, curr_lr, model, criterion, optimizer, device,
             # Check dtype of model output (logits)
             print(f"Logits dtype (inside autocast): {logits.dtype}")
 
-
         with record_function("loss_calculation"):
             loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
 
@@ -195,7 +146,7 @@ def train_step_logic(step_num, curr_lr, model, criterion, optimizer, device,
 
         # Optional: Gradient Clipping (unscale first)
         # scaler.unscale_(optimizer)
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        # torch.nn.data_utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
         with record_function("scaler_optimizer_step"):
             scaler.step(optimizer)
@@ -206,14 +157,14 @@ def train_step_logic(step_num, curr_lr, model, criterion, optimizer, device,
         with record_function("backward_pass"):
             loss.backward()
             # Optional: Gradient Clipping
-            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # torch.nn.data_utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         with record_function("optimizer_step"):
             optimizer.step()
     else:  # float32, no AMP
         with record_function("backward_pass"):
             loss.backward()
         # Optional: Gradient Clipping
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        # torch.nn.data_utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         with record_function("optimizer_step"):
             optimizer.step()
 
@@ -318,7 +269,12 @@ def get_profiler_trace_handler(wandb_run_dir):
 
 
 def main():
-    validate_config()
+    validate_config(ENABLE_WANDB=ENABLE_WANDB,
+                    wandb=wandb,
+                    ENABLE_PROFILER=ENABLE_PROFILER,
+                    WANDB_WATCH_LEVEL=WANDB_WATCH_LEVEL,
+                    TOKENIZER_PATH=TOKENIZER_PATH,
+                    PRECISION=PRECISION)
     torch.manual_seed(SEED)  # Global seed for other torch ops if any
 
     wandb_run = None
@@ -490,7 +446,8 @@ def main():
                 # Assumes wandb & wandb_run are valid due to checks
                 record_shapes=PROFILER_RECORD_SHAPES,
                 profile_memory=PROFILER_PROFILE_MEMORY,
-                with_stack=PROFILER_WITH_STACK
+                with_flops=PROFILER_WITH_OPS,
+                with_stack=PROFILER_WITH_STACK,
         ) as prof:
             for step_num in range(TRAIN_STEPS):
                 try:

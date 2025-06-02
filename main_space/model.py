@@ -106,6 +106,16 @@ class TransBlock(nn.Module):
         x = x + self.ffwd(self.ln2(x))
         return x
 
+class LMHead(nn.Module):
+    def __init__(self, d_model, vocab_size, token_embd_weights):
+        super().__init__()
+        self.final_norm = nn.LayerNorm(d_model)  # Common to have a final LayerNorm
+        self.lm_head = nn.Linear(d_model, vocab_size)
+        self.lm_head.weight = token_embd_weights
+
+    def forward(self, x):
+        x = self.final_norm(x)
+        return self.lm_head(x)
 
 class MyTransformerLM(nn.Module):
     def __init__(self, vocab_size, d_model, n_heads, n_layers, ctx_size, p_dropout):
@@ -123,18 +133,13 @@ class MyTransformerLM(nn.Module):
                         p_dropout=p_dropout,
                         ctx_size=ctx_size) for _ in range(n_layers)]
         )
-        self.final_norm = nn.LayerNorm(d_model)  # Common to have a final LayerNorm
-        self.lm_head = nn.Linear(d_model, vocab_size)
-        self.lm_head.weight = self.token_embedding.embedding.weight
+
+
+        self.lm_head = LMHead(d_model, vocab_size, self.token_embedding.embedding.weight)
+
+
 
         self.apply(self._init_default_weights)
-
-        # Classifier head
-        self.lm_head.weight = self.token_embedding.embedding.weight
-        if self.lm_head.bias is not None:
-            torch.nn.init.zeros_(self.lm_head.bias)
-
-        # 3. Apply special scaled initialization for residual contributors
         self._apply_scaled_residual_initialization(n_layers)
 
 
@@ -151,7 +156,8 @@ class MyTransformerLM(nn.Module):
             torch.nn.init.ones_(module.weight)
 
     def _apply_scaled_residual_initialization(self, n_layers):
-
+        # Scaling sub-layer outputs before adding to residual, so residuals
+        # hold more power at the earlier stages of training
 
         scale_factor = math.sqrt(2.0 * n_layers)
         scaled_std = self.initial_std / scale_factor
@@ -215,20 +221,7 @@ if __name__ == '__main__':
     dummy_input_ids = torch.randint(0, vocab_size_test, (batch_size_test, max_seq_len_test))
     print(f"\nInput IDs shape: {dummy_input_ids.shape}")
 
-    # Create a dummy causal mask for testing
-    # For a decoder, the mask ensures that a position can only attend to previous positions.
-    # PyTorch's MultiheadAttention module expects a mask where `True` indicates a position *should not* be attended to.
-    # Or it can accept additive masks. We'll create an additive mask.
     seq_len = dummy_input_ids.size(1)
-    # For our dummy MHA, the mask argument is present but not used.
-    # For a real MHA, it might look like this:
-    # causal_mask = (torch.triu(torch.ones(seq_len, seq_len)) == 1).transpose(0, 1)
-    # causal_mask = causal_mask.float().masked_fill(causal_mask == 0, float('-inf')).masked_fill(causal_mask == 1, float(0.0))
-    # causal_mask = causal_mask.unsqueeze(0).unsqueeze(0).expand(batch_size_test, num_heads_test, -1, -1)
-
-    # Since our MHA is a stub, we can pass None or a simplified mask for now.
-    # If you use nn.TransformerEncoderLayer, it can generate causal masks internally.
-    # For now, we will pass None and let the model generate its basic causal mask (which is also not fully used by the dummy MHA)
     output_logits = model(dummy_input_ids)
     print(f"Output logits shape: {output_logits.shape}")
     assert output_logits.shape == (batch_size_test, max_seq_len_test, vocab_size_test)
