@@ -22,9 +22,9 @@ class WandbConfig:
 
     def __init__(self):
         # --- Overall Logging Control ---
-        self.is_wandb_enabled = True  # Master switch for all W&B interactions
-        self.is_profiler_enabled = True  # Master switch for torch.profiler
-        self.is_trace_handler_custom = True  # Choose dir where pytorch.profiler will save measured metrics
+        self.is_wandb_enabled = False  # Master switch for all W&B interactions
+        self.is_profiler_enabled = False  # Master switch for torch.profiler
+        self.is_trace_handler_custom = False  # Choose dir where pytorch.profiler will save measured metrics
 
         # --- W&B Configuration ---
         self.wandb_project_name = "self-distill-research"
@@ -69,9 +69,9 @@ class TrainingConfig:
 
         def __init__(self):
             self.vocab_size = 5000  # Dummy vocab size
-            self.d_model = 32  # Embedding dimension / model dimension
-            self.num_heads = 4  # Number of attention heads
-            self.num_layers = 6  # Number of Transformer blocks
+            self.d_model = 1  # Embedding dimension / model dimension
+            self.num_heads = 1  # Number of attention heads
+            self.num_layers = 1  # Number of Transformer blocks
             self.ctx_len = 32  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.1
 
@@ -93,7 +93,7 @@ class TrainingConfig:
 
     def __init__(self):
         self.warmup_steps = int(1e2)
-        self.train_steps = int(1e3)
+        self.train_steps = int(2e5)
         self.peak_lr = 1e-3
         self.batch_size = 1
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
@@ -105,7 +105,7 @@ class TrainingConfig:
         self.initialize_precision()
         self.scaler = None
 
-        self.doesDistill = True
+        self.doesDistill = False
 
         self.hyperParamConfig = self.HyperparameterConfig()
         self.distillConfig = self.DistillConfig()

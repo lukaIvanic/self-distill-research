@@ -1,9 +1,12 @@
 import math
 
+from main_space.utils.settings_utils import get_training_config
+
+
 def calculate_distill_alpha(config, step_num):
     return config.trainingConfig.distillConfig.distill_alpha * (step_num / config.trainingConfig.train_steps)
 
-def calculate_lr(config, step_num):
+def calculate_lr(step_num):
     """
     Calculates learning rate with linear warmup and cosine or inverse square root decay.
 
@@ -17,7 +20,7 @@ def calculate_lr(config, step_num):
         float: The calculated learning rate for the current step.
     """
 
-    trainingConfig = config.trainingConfig
+    trainingConfig = get_training_config()
 
     if trainingConfig.warmup_steps > trainingConfig.train_steps:
         raise ValueError(

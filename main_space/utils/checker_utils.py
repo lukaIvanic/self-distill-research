@@ -3,6 +3,8 @@ import torch
 
 import wandb
 
+from main_space.utils.settings_utils import get_wandb_config, get_dataset_config, get_training_config
+
 
 def strict_error_enable_tip():
     return ("To make misconfigurations like this one a fatal error"
@@ -15,19 +17,23 @@ def strict_error_disable_tip():
             "error throwing mechanisms.")
 
 
-def validatePrecision(config):
-    valid_precisions = ["float32", "float16", "bfloat16"]
-    if config.trainingConfig.training_precision not in valid_precisions:
-        raise ValueError(
-            f"Script Configuration Error: PRECISION must be one of {valid_precisions}, got '{config.trainingConfig.training_precision}'.")
+def validatePrecision():
 
-    if config.trainingConfig.training_precision == "bfloat16":
+    wandbConfig = get_wandb_config()
+    trainingConfig = get_training_config()
+
+    valid_precisions = ["float32", "float16", "bfloat16"]
+    if trainingConfig.training_precision not in valid_precisions:
+        raise ValueError(
+            f"Script Configuration Error: PRECISION must be one of {valid_precisions}, got '{trainingConfig.training_precision}'.")
+
+    if trainingConfig.training_precision == "bfloat16":
         if torch.cuda.is_available():
             if torch.cuda.is_bf16_supported(including_emulation=False):
                 print(f"Using natively supported non-emulated bfloat16 precision on CUDA.")
                 pass
             elif torch.cuda.is_bf16_supported(including_emulation=True):
-                if config.wandbConfig.loggingConfig.strict_error:
+                if wandbConfig.loggingConfig.strict_error:
                     raise ValueError("Precision bfloat16 was selected, and CUDA was available, "
                                      "but only emulation is supported. "
                                      + strict_error_disable_tip()
@@ -41,7 +47,7 @@ def validatePrecision(config):
                 raise ValueError("Precision bfloat16 was selected, and CUDA was available, "
                                  "but the device does not support bfloat16 (standard or emulated).")
         else:
-            if config.wandbConfig.loggingConfig.strict_error:
+            if wandbConfig.loggingConfig.strict_error:
                 raise ValueError("Precision bfloat16 was selected, but CUDA was not available, "
                                  "emulation may or may not be supported. "
                                  + strict_error_disable_tip())
@@ -50,11 +56,10 @@ def validatePrecision(config):
                       "emulation may or may not be supported on given device (likely CPU). "
                       + strict_error_enable_tip())
 
+def validate_config():
 
-def validate_config(config):
-
-    wandbConfig = config.wandbConfig
-    datasetConfig = config.datasetConfig
+    wandbConfig = get_wandb_config()
+    datasetConfig = get_dataset_config()
 
     print("Validating configuration...")
     if wandbConfig.is_wandb_enabled and wandb is None:
@@ -85,5 +90,5 @@ def validate_config(config):
             error_msg = f"ERROR: Tokenizer not found at: '{datasetConfig.tokenizer_path}'."
         raise FileNotFoundError(error_msg)
 
-    validatePrecision(config)
+    validatePrecision()
     print("Configuration appears valid.")

@@ -150,8 +150,6 @@ class MyTransformerLM(nn.Module):
         self.apply(self._init_default_weights)
         self._apply_scaled_residual_initialization(n_layers)
 
-
-
     def _init_default_weights(self, module):
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=self.initial_std)
@@ -235,34 +233,34 @@ class MyTransformerLM(nn.Module):
 
 
 
-if __name__ == '__main__':
-    # Quick test of the model structure
-    vocab_size_test = 100
-    d_model_test = 32
-    num_heads_test = 4
-    num_layers_test = 2
-    max_seq_len_test = 16
-    batch_size_test = 2
-    dropout_test = 0.1
-
-    model = MyTransformerLM(
-        vocab_size=vocab_size_test,
-        d_model=d_model_test,
-        n_heads=num_heads_test,
-        n_layers=num_layers_test,
-        ctx_size=max_seq_len_test,
-        p_dropout=dropout_test
-    )
-
-    print(model)
-    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Model has {num_params:,} trainable parameters.")
-
-    dummy_input_ids = torch.randint(0, vocab_size_test, (batch_size_test, max_seq_len_test))
-    print(f"\nInput IDs shape: {dummy_input_ids.shape}")
-
-    seq_len = dummy_input_ids.size(1)
-    output_logits = model(dummy_input_ids)
-    print(f"Output logits shape: {output_logits.shape}")
-    assert output_logits.shape == (batch_size_test, max_seq_len_test, vocab_size_test)
-    print("\nModel structure seems callable.")
+# if __name__ == '__main__':
+#     # Quick test of the model structure
+#     vocab_size_test = 100
+#     d_model_test = 32
+#     num_heads_test = 4
+#     num_layers_test = 2
+#     max_seq_len_test = 16
+#     batch_size_test = 2
+#     dropout_test = 0.1
+#
+#     model = MyTransformerLM(
+#         vocab_size=vocab_size_test,
+#         d_model=d_model_test,
+#         n_heads=num_heads_test,
+#         n_layers=num_layers_test,
+#         ctx_size=max_seq_len_test,
+#         p_dropout=dropout_test
+#     )
+#
+#     print(model)
+#     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+#     print(f"Model has {num_params:,} trainable parameters.")
+#
+#     dummy_input_ids = torch.randint(0, vocab_size_test, (batch_size_test, max_seq_len_test))
+#     print(f"\nInput IDs shape: {dummy_input_ids.shape}")
+#
+#     seq_len = dummy_input_ids.size(1)
+#     output_logits = model(dummy_input_ids)
+#     print(f"Output logits shape: {output_logits.shape}")
+#     assert output_logits.shape == (batch_size_test, max_seq_len_test, vocab_size_test)
+#     print("\nModel structure seems callable.")

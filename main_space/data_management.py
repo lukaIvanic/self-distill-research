@@ -8,6 +8,7 @@ from itertools import chain
 import argparse  # For command-line options in __main__
 
 from main_space.settings import Config
+from main_space.utils.settings_utils import get_dataset_config, get_hyperparameter_config
 
 # --- Constants (Defaults, can be overridden by args in __main__) ---
 DEFAULT_TOKENIZER_PATH = os.path.join(os.getcwd(), "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")  # IMPORTANT: Update this path
@@ -18,13 +19,12 @@ DEFAULT_CACHE_DIR = os.path.join(os.getcwd(), "dataset_creation/temp_files/cache
 
 
 def load_and_process_dataset_for_lm(
-        config: Config,
         bos_token_id: int,
         eos_token_id: int
 ):
 
-    dataset_config = config.datasetConfig
-    hyperparamConfig = config.trainingConfig.hyperParamConfig
+    dataset_config = get_dataset_config()
+    hyperparamConfig = get_hyperparameter_config()
 
     if not os.path.exists(dataset_config.tokenizer_path):
         raise FileNotFoundError(f"Tokenizer file not found at {dataset_config.tokenizer_path}.")

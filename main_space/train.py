@@ -1,92 +1,56 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
 
-from settings import Config
-from main_space.model import MyTransformerLM
-from main_space.utils.log_utils import enable_wandb_watch, initialize_wandb, get_profiler_or_null_context
+from main_space.train_management import get_global_train_manager
+import main_space.utils.settings_utils as settings_utils
+from main_space.utils.log_utils import print_model_params
 from main_space.utils.train_utils import make_train_step
 from main_space.utils.checker_utils import validate_config
-from main_space.utils.dataloader_utils import get_dataloader, get_next_batch
+from main_space.utils.dataloader_utils import get_next_batch
 
-projectConfig = Config()
-wandbConfig = projectConfig.wandbConfig
 
-trainingConfig = projectConfig.trainingConfig
-hyperParamConfig = trainingConfig.hyperParamConfig
+trainManage = get_global_train_manager()
+
+projectConfig = settings_utils.get_project_config()
+wandbConfig = settings_utils.get_wandb_config()
+trainingConfig = settings_utils.get_training_config()
+hyperParamConfig = settings_utils.get_training_config()
 
 
 def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
 
     torch.manual_seed(trainingConfig.seed)  # TODO: check for global seed configuration
 
-    validate_config(projectConfig)
+    validate_config()
 
-    wandb_run = initialize_wandb(projectConfig)
+    trainManage.setup_device()
+    trainManage.setup_wandb_run()
 
-    train_dataloader = get_dataloader(
-        projectConfig,
-        split='train'
-    )
+    with trainManage.get_profiler_context():
 
-    model = MyTransformerLM(
-        vocab_size=hyperParamConfig.vocab_size,  # TODO: use vocab size directly from tokenizer or ensure it's correct
-        d_model=hyperParamConfig.d_model,
-        n_heads=hyperParamConfig.num_heads,
-        n_layers=hyperParamConfig.num_layers,
-        ctx_size=hyperParamConfig.ctx_len,
-        p_dropout=hyperParamConfig.dropout_rate
-    ).to(device)
+        trainManage.setup_train_dataloader()
+        trainManage.setup_model()
+        trainManage.setup_wandb_watch()
 
-    # --- 4. W&B Watch (if enabled and level is not "none") ---
-    if wandbConfig.is_wandb_enabled and wandb_run and wandbConfig.wandb_watch_level != "none":
-        enable_wandb_watch(config=projectConfig,
-                           model=model,
-                           wandb_run=wandb_run)
+        # TODO fix this logging
+        print_model_params(trainManage.model)
 
-    profiler_or_null_context = get_profiler_or_null_context(ENABLE_PROFILER=wandbConfig.is_profiler_enabled,
-                                                            ENABLE_WANDB=wandbConfig.is_wandb_enabled,
-                                                            wandb_run=wandb_run, device=device,
-                                                            wandbConfig=wandbConfig)
+        trainManage.setup_optimizer()
+        trainManage.setup_criterion()
 
-    with profiler_or_null_context as prof:
-        num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print(f"Model instantiated with {num_params:,} trainable parameters.")
-
-        optimizer = optim.AdamW(model.parameters(), lr=trainingConfig.peak_lr)
-        # For LM, CrossEntropyLoss ignores index -100 by default, which our DataLoader uses for label padding.
-        criterion = nn.CrossEntropyLoss()
-
+        # TODO: move printing elsewhere
         print(f"\nStarting training for {trainingConfig.train_steps} iterations...")
-        print(f"Train loader has ~{len(train_dataloader)} batches of size {trainingConfig.batch_size}.")
+        print(f"Train loader has ~{len(trainManage.train_dataloader)} batches of size {trainingConfig.batch_size}.")
 
-        train_iter = iter(train_dataloader)
-        current_step = 0
+        trainManage.init_train_iterator()
+        trainManage.init_curr_step_counter()
 
         for step_num in range(trainingConfig.train_steps):
-            input_ids, target_ids = get_next_batch(config=projectConfig,
-                                                   train_iter=train_iter,
-                                                   train_dataloader=train_dataloader,
-                                                   step_num=step_num,
-                                                   device=device)
 
-            make_train_step(
-                config=projectConfig,
-                step_num=step_num,
-                model=model,
-                criterion=criterion,
-                optimizer=optimizer,
-                device=device,
-                batch_input_ids=input_ids,
-                batch_target_ids=target_ids,
-                wandb_run_obj=wandb_run,
-                profiler_obj=prof
-            )
-            current_step += 1
+            trainManage.next_batch()
+            trainManage.make_train_step()
 
-    print(f"\nTraining completed after {current_step} steps.")
+    # TODO: manage logging better
+    print(f"\nTraining completed after {trainManage.current_train_step} steps.")
 
     # TODO figure out validation run
     # validation_run(model=model,

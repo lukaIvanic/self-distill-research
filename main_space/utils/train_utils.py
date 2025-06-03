@@ -9,7 +9,7 @@ import wandb
 
 from main_space.utils.log_utils import step_log
 from main_space.utils.hyperparameter_utils import usesAmpOrNot, calculate_lr, calculate_distill_alpha
-
+from main_space.utils.settings_utils import get_training_config
 
 
 def set_step_lr(lr, optimizer):
@@ -115,16 +115,20 @@ def get_loss_attn_distill(config, step_num, model, criterion, batch_input_ids, b
 
     return total_loss, ce_loss
 
-def make_train_step(config, step_num, model, criterion, optimizer, device,
-                    batch_input_ids, batch_target_ids,  # Directly supplied
-                    wandb_run_obj, profiler_obj
-                    ):
+def make_train_step(step_num,
+                    model,
+                    criterion,
+                    optimizer,
+                    device,
+                    batch_input_ids,
+                    batch_target_ids,  # Directly supplied
+                    wandb_run_obj,
+                    profiler_obj):
 
-    trainingConfig = config.trainingConfig
+    trainingConfig = get_training_config()
 
 
     current_actual_lr = calculate_lr(
-        config=config,
         step_num=step_num,
     )
 
@@ -170,8 +174,7 @@ def make_train_step(config, step_num, model, criterion, optimizer, device,
 
     loss_val = loss.item()
 
-    step_log(config=config,
-             step_num=step_num,
+    step_log(step_num=step_num,
              ce_only_loss=ce_only_loss,
              curr_lr=current_actual_lr,
              wandb=wandb,

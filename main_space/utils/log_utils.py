@@ -4,7 +4,7 @@ from torch.profiler import profile, ProfilerActivity
 
 import wandb
 
-
+from main_space.utils.settings_utils import get_wandb_config, get_training_config, get_dataset_config, get_hyperparameter_config, get_profiler_config
 
 def get_profiler_trace_handler(ENABLE_PROFILER, CUSTOM_TRACE_HANDLER, wandb_run_dir):
     if not ENABLE_PROFILER:
@@ -28,11 +28,11 @@ def get_profiler_trace_handler(ENABLE_PROFILER, CUSTOM_TRACE_HANDLER, wandb_run_
         return wandb.profiler.torch_trace_handler()
 
 
-def get_profiler_or_null_context(ENABLE_PROFILER, ENABLE_WANDB, wandb_run, device, wandbConfig):
-    profilerConfig = wandbConfig.profilerConfig
+def get_profiler_context(wandb_run, device):
 
-    if not (ENABLE_PROFILER and ENABLE_WANDB and wandb_run):
-        return contextlib.nullcontext()
+    wandbConfig = get_wandb_config()
+    profilerConfig = get_profiler_config()
+
 
     print("PyTorch Profiler is ENABLED.")
     activities = [ProfilerActivity.CPU]
@@ -45,7 +45,7 @@ def get_profiler_or_null_context(ENABLE_PROFILER, ENABLE_WANDB, wandb_run, devic
         repeat=profilerConfig.profiler_repeat_cycles
     )
 
-    trace_handler = get_profiler_trace_handler(ENABLE_PROFILER, wandbConfig.is_trace_handler_custom, wandb_run.dir)
+    trace_handler = get_profiler_trace_handler(wandbConfig.is_profiler_enabled, wandbConfig.is_trace_handler_custom, wandb_run.dir)
 
     profiler_context = profile(
         activities=activities,
@@ -60,8 +60,8 @@ def get_profiler_or_null_context(ENABLE_PROFILER, ENABLE_WANDB, wandb_run, devic
     return profiler_context
 
 
-def enable_wandb_watch(config, model, wandb_run):
-    wandbConfig = config.wandbConfig
+def setup_wandb_watch(model, wandb_run):
+    wandbConfig = get_wandb_config()
 
     if wandbConfig.is_wandb_enabled and wandb_run and wandbConfig.wandb_watch_level != "none":
         print(f"Setting up W&B model watch (Level: {wandbConfig.wandb_watch_level}, Freq: {wandbConfig.wandb_log_freq_model_watch})...")
@@ -69,20 +69,19 @@ def enable_wandb_watch(config, model, wandb_run):
         wandb.watch(model, log=wandbConfig.wandb_watch_level, log_freq=wandbConfig.wandb_log_freq_model_watch, log_graph=wandbConfig.does_wandb_log_graph)
 
 
-def initialize_wandb(config):
+def initialize_wandb():
 
 
-    wandbConfig = config.wandbConfig
-    trainingConfig = config.trainingConfig
-    datasetConfig = config.datasetConfig
+    wandbConfig = get_wandb_config()
+    trainingConfig = get_training_config()
+    datasetConfig = get_dataset_config()
+    hyperParamConfig = get_hyperparameter_config()
 
     if not wandbConfig.is_wandb_enabled:
         return None
 
-    hyperParamConfig = trainingConfig.hyperParamConfig
 
     # TODO: Add number of parameters in model
-
     print(f"Attempting to initialize W&B (Project: {wandbConfig.wandb_project_name}, Entity: {wandbConfig.wandb_entity})...")
     # TODO: Sigurno se moze ovo napravit da sve parametre iz settingsa se uzmu, ili napravit helper funkciju
     config_dict = {
@@ -130,18 +129,26 @@ def initialize_wandb(config):
         )
         if wandb_run:
             print(f"W&B Initialized. Run URL: {wandb_run.url}")
-        else:  # Should ideally not happen if wandb.init doesn't raise error
+        else:
             print("W&B initialization call returned None, but no error was raised. W&B features might be limited.")
 
         return wandb_run
     except Exception as e:
         print(f"Error initializing W&B: {e}. W&B features will be disabled.")
+        return None
 
 
-def step_log(config, step_num, ce_only_loss, curr_lr, device, wandb, profiler_obj, wandb_run_obj, loss_val, current_actual_lr):
+def print_model_params(model):
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model instantiated with {num_params:,} trainable parameters.")
+    print(f"FIX print_model_params, CURRENTLY MODEL IS BEING PASSED INTO IT, BECAUSE OTHERWISE IT WOULD"
+          f"BE A CIRCULAR IMPORT.")
 
-    wandbConfig = config.wandbConfig
-    trainingConfig = config.trainingConfig
+
+def step_log(step_num, ce_only_loss, curr_lr, device, wandb, profiler_obj, wandb_run_obj, loss_val, current_actual_lr):
+
+    wandbConfig = get_wandb_config()
+    trainingConfig = get_training_config()
 
     if (step_num + 1) % (wandbConfig.wandb_log_freq_metrics) == 0:
         print(
