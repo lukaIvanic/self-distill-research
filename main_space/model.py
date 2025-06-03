@@ -33,7 +33,6 @@ class Head(nn.Module):
         self.value = nn.Linear(d_model, head_size, bias=False)
         self.register_buffer('tril', torch.tril(torch.ones(ctx_size, ctx_size)))
         self.dropout = nn.Dropout(p_dropout)
-        # TODO: efficacy and correctness of this Head forward mechanism
 
     def forward(self, x):
         B, T, C = x.shape
@@ -44,10 +43,13 @@ class Head(nn.Module):
 
         # TODO: Is F for softmax the best here?
         wei = F.softmax(wei, dim=-1)
+
+        attn_scores_for_distill = wei.clone()
+
         wei = self.dropout(wei)
         v = self.value(x)
         out = wei @ v
-        return out
+        return out, attn_scores_for_distill
 
 
 class MultiHeadAttention(nn.Module):
@@ -58,13 +60,20 @@ class MultiHeadAttention(nn.Module):
                                          p_dropout=p_dropout,
                                          ctx_size=ctx_size) for _ in range(n_heads)])
         self.output_proj_mha = nn.Linear(head_size * n_heads, d_model)
-        # TODO investigate where to put in dropout
         self.dropout = nn.Dropout(p_dropout)  # Use global dropout
 
     def forward(self, x):
-        out = torch.cat([h(x) for h in self.heads], dim=-1)
+
+        head_outputs = [h(x) for h in self.heads]
+        head_individual_outputs = [data[0] for data in head_outputs]
+        head_individual_attn_scores = [data[1] for data in head_outputs]
+
+        out = torch.cat(head_individual_outputs, dim=-1)
         out = self.dropout(self.output_proj_mha(out))
-        return out
+
+        stacked_attn_scores = torch.stack(head_individual_attn_scores, dim=1)
+
+        return out, stacked_attn_scores
 
 
 class FeedForward(nn.Module):
@@ -73,7 +82,6 @@ class FeedForward(nn.Module):
 
 
         self.fc1 = nn.Linear(d_model, 4 * d_model)
-        # TODO: probably use GELU
         self.geluActivation = nn.GELU()
         self.feed_forward_lay_second = nn.Linear(4 * d_model, d_model)  # This is the one we need to scale
         self.dropout_layer = nn.Dropout(p_dropout)
@@ -97,14 +105,14 @@ class TransBlock(nn.Module):
                                      ctx_size=ctx_size)
         self.ffwd = FeedForward(d_model=d_model,
                                 p_dropout=p_dropout)
-        # TODO: residuals and layer norms, their ordering
         self.ln1 = nn.LayerNorm(d_model)
         self.ln2 = nn.LayerNorm(d_model)
 
     def forward(self, x):
-        x = x + self.sa(self.ln1(x))
+        mha_output, attn_scores = self.sa(self.ln1(x))
+        x = x + mha_output
         x = x + self.ffwd(self.ln2(x))
-        return x
+        return x, attn_scores
 
 class LMHead(nn.Module):
     def __init__(self, d_model, vocab_size, token_embd_weights):
@@ -177,20 +185,41 @@ class MyTransformerLM(nn.Module):
             else:
                 print(f"Warning: Could not find 'feed_forward_lay_second' in TransBlock's FeedForward.")
 
-    def forward(self, input_ids):
+
+    def forward_embd_layer(self, input_ids):
         batch_size, ctx_len = input_ids.shape
         device = input_ids.device
 
         tok_emb = self.token_embedding(input_ids)  # [batch_size, seq_len, d_model]
         pos_emb = self.positional_embedding(ctx_len, batch_size, device)  # [batch_size, seq_len, d_model]
 
-        x = tok_emb + pos_emb  # Add token and positional embeddings
-        x = self.dropout(x)
-        for block in self.transformer_blocks:
-            x = block(x)  # Pass the mask to each block
+        x = tok_emb + pos_emb
+        return self.dropout(x)
 
+
+    def forward_lm_head_layer(self, x):
         logits = self.lm_head(x)
         return logits
+
+    def forward_with_attn_for_distill(self, input_ids):
+
+        x = self.forward_embd_layer(input_ids)
+        attns_per_block = []
+
+        for i, block in enumerate(self.transformer_blocks):
+            x, attn_scores = block(x)
+            attns_per_block.append(attn_scores)
+
+        return self.forward_lm_head_layer(x), attns_per_block
+
+    def forward(self, input_ids):
+
+        x = self.forward_embd_layer(input_ids)
+
+        for block in self.transformer_blocks:
+            x, _ = block(x)
+
+        return self.forward_lm_head_layer(x)
 
 
 

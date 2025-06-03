@@ -94,7 +94,7 @@ def initialize_wandb(config):
         "dropout_rate": hyperParamConfig.dropout_rate,
         "num_iterations": trainingConfig.train_steps,
         "batch_size": trainingConfig.batch_size,
-        "learning_rate": trainingConfig.learning_rate,
+        "learning_rate": trainingConfig.peak_lr,
         "seed": trainingConfig.seed,
         "dataset_name": datasetConfig.dataset_name,
         "dataset_config": datasetConfig.dataset_config,
@@ -104,7 +104,7 @@ def initialize_wandb(config):
         "log_freq_model_watch": wandbConfig.wandb_log_freq_model_watch,
         "scheduler_type": trainingConfig.scheduler_type,
         "warmup_steps": trainingConfig.warmup_steps,
-        "min_lr_cosine": trainingConfig.min_learning_rate,
+        "min_lr_cosine": trainingConfig.min_lr,
         "precision": trainingConfig.training_precision,
         "effective_precision": str(trainingConfig.precision_dtype)
 
@@ -132,6 +132,8 @@ def initialize_wandb(config):
             print(f"W&B Initialized. Run URL: {wandb_run.url}")
         else:  # Should ideally not happen if wandb.init doesn't raise error
             print("W&B initialization call returned None, but no error was raised. W&B features might be limited.")
+
+        return wandb_run
     except Exception as e:
         print(f"Error initializing W&B: {e}. W&B features will be disabled.")
 

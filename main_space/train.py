@@ -55,7 +55,7 @@ def main():
         num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f"Model instantiated with {num_params:,} trainable parameters.")
 
-        optimizer = optim.AdamW(model.parameters(), lr=trainingConfig.learning_rate)
+        optimizer = optim.AdamW(model.parameters(), lr=trainingConfig.peak_lr)
         # For LM, CrossEntropyLoss ignores index -100 by default, which our DataLoader uses for label padding.
         criterion = nn.CrossEntropyLoss()
 

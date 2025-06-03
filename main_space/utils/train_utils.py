@@ -1,12 +1,14 @@
 
 import torch
 from torch.amp import autocast
+from torch.nn import functional as F
 from torch.profiler import record_function
+
 
 import wandb
 
 from main_space.utils.log_utils import step_log
-from main_space.utils.hyperparameter_utils import usesAmpOrNot, calculate_lr
+from main_space.utils.hyperparameter_utils import usesAmpOrNot, calculate_lr, calculate_distill_alpha
 
 
 
@@ -14,6 +16,64 @@ def set_step_lr(lr, optimizer):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
+
+
+def get_loss_classic(model, criterion, batch_input_ids, batch_target_ids):
+    with record_function("forward_pass"):
+        logits = model(batch_input_ids)
+
+    with record_function("loss_calculation"):
+        loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
+
+    return loss
+
+def get_loss_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids):
+
+    distillConfig = config.trainingConfig.distillConfig
+
+
+    with record_function("forward_pass_distill"):
+        logits, attns_per_block = model.forward_with_attn_for_distill(batch_input_ids)
+
+    with record_function("loss_calculation_distill"):
+        ce_loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
+
+        ce_item = ce_loss.item()
+        print(f"ce_item: {ce_item}")
+
+        teacher_attns = attns_per_block[distillConfig.teacher_index]
+        student_attns = attns_per_block[distillConfig.student_index]
+
+        B, H, T_q, T_k = teacher_attns.shape
+
+        student_attns_logged = (student_attns + 1e-8).log()
+        teacher_attns_logged = (teacher_attns + 1e-8).log()
+
+        student_probs_for_kl = student_attns.view(B * H * T_q, T_k)
+        student_log_probs_for_kl = student_attns_logged.view(B * H * T_q, T_k)
+
+
+        teacher_probs_for_kl = teacher_attns.view(B * H * T_q, T_k)
+        teacher_log_probs_for_kl = teacher_attns_logged.view(B * H * T_q, T_k)
+
+        kl_loss = F.kl_div(
+            input=student_log_probs_for_kl,
+            target=teacher_log_probs_for_kl,
+            reduction='batchmean',
+            log_target=True
+        )
+
+        kl_item = kl_loss.item()
+        print(f"kl_item: {kl_item}")
+
+
+        step_distill_alpha = calculate_distill_alpha(config, step_num)
+        total_loss = ce_loss + step_distill_alpha * kl_loss
+
+
+
+
+    return total_loss
 
 def make_train_step(config, step_num, model, criterion, optimizer, device,
                     batch_input_ids, batch_target_ids,  # Directly supplied
@@ -24,12 +84,8 @@ def make_train_step(config, step_num, model, criterion, optimizer, device,
 
 
     current_actual_lr = calculate_lr(
-        current_step=step_num,
-        peak_lr=trainingConfig.learning_rate,  # LEARNING_RATE from config is the peak LR
-        warmup_steps=trainingConfig.warmup_steps,
-        total_training_steps=trainingConfig.train_steps,
-        scheduler_type=trainingConfig.scheduler_type,
-        min_lr=trainingConfig.min_learning_rate
+        config=config,
+        step_num=step_num,
     )
 
     set_step_lr(current_actual_lr, optimizer)
@@ -38,11 +94,11 @@ def make_train_step(config, step_num, model, criterion, optimizer, device,
 
     with autocast(device_type=device.type, enabled=usesAmpOrNot(trainingConfig.training_precision), dtype=trainingConfig.precision_dtype):
 
-        with record_function("forward_pass"):
-            logits = model(batch_input_ids)
+        if trainingConfig.doesDistill:
+            loss = get_loss_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids)
+        else:
+            loss = get_loss_classic(model, criterion, batch_input_ids, batch_target_ids)
 
-        with record_function("loss_calculation"):
-            loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
 
     with record_function("optimizer_zero_grad"):
         optimizer.zero_grad(set_to_none=True)
