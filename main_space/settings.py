@@ -81,6 +81,8 @@ class TrainingConfig:
             # TODO: this covers a really basic distill
             #       implementation for attention between only two arbitrarily defined layers.
             # TODO: should implement distillation type config param
+
+            self.distill_mode = 'hidd_single'  # 'attn_single', 'hidd_single'
             self.distill_alpha = 10.0
             self.student_index = 3
             self.teacher_index = 5

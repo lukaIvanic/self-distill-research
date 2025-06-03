@@ -27,7 +27,47 @@ def get_loss_classic(model, criterion, batch_input_ids, batch_target_ids):
 
     return loss
 
-def get_loss_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids):
+
+def get_loss_hidd_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids):
+
+
+    distillConfig = config.trainingConfig.distillConfig
+
+
+    with record_function("forward_pass_distill"):
+        logits, hidd_outs_per_block = model.forward_with_out_hidd_for_distill(batch_input_ids)
+
+    with record_function("loss_calculation_distill"):
+        ce_loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
+
+        ce_item = ce_loss.item()
+        print(f"ce_item: {ce_item}")
+
+        teacher_hidd_output = hidd_outs_per_block[distillConfig.teacher_index]
+        student_hidd_output = hidd_outs_per_block[distillConfig.student_index]
+
+        if teacher_hidd_output.shape != student_hidd_output.shape:
+            raise ValueError(f"Teacher ({teacher_hidd_output.shape}) and student ({student_hidd_output.shape}) "
+                             "hidden states must have the same shape for MSE distillation.")
+
+
+        mse_loss = F.mse_loss(
+            input=student_hidd_output,
+            target=teacher_hidd_output,
+            reduction='mean'
+        )
+
+        mse_item = mse_loss.item()
+        print(f"mse_item: {mse_item}")
+
+
+        #step_distill_alpha = calculate_distill_alpha(config, step_num)
+        total_loss = ce_loss + 1.0 * mse_loss
+
+    return total_loss, ce_loss
+
+
+def get_loss_attn_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids):
 
     distillConfig = config.trainingConfig.distillConfig
 
@@ -73,7 +113,7 @@ def get_loss_distill(config, step_num, model, criterion, batch_input_ids, batch_
 
 
 
-    return total_loss
+    return total_loss, ce_loss
 
 def make_train_step(config, step_num, model, criterion, optimizer, device,
                     batch_input_ids, batch_target_ids,  # Directly supplied
@@ -95,9 +135,16 @@ def make_train_step(config, step_num, model, criterion, optimizer, device,
     with autocast(device_type=device.type, enabled=usesAmpOrNot(trainingConfig.training_precision), dtype=trainingConfig.precision_dtype):
 
         if trainingConfig.doesDistill:
-            loss = get_loss_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids)
+
+            if trainingConfig.distillConfig.distill_mode == 'attn_single':
+                loss, ce_only_loss = get_loss_attn_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids)
+            else:
+                loss, ce_only_loss = get_loss_hidd_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids)
+
+
         else:
             loss = get_loss_classic(model, criterion, batch_input_ids, batch_target_ids)
+            ce_only_loss = loss
 
 
     with record_function("optimizer_zero_grad"):
@@ -125,7 +172,7 @@ def make_train_step(config, step_num, model, criterion, optimizer, device,
 
     step_log(config=config,
              step_num=step_num,
-             loss=loss,
+             ce_only_loss=ce_only_loss,
              curr_lr=current_actual_lr,
              wandb=wandb,
              device=device,

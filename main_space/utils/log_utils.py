@@ -138,7 +138,7 @@ def initialize_wandb(config):
         print(f"Error initializing W&B: {e}. W&B features will be disabled.")
 
 
-def step_log(config, step_num, loss, curr_lr, device, wandb, profiler_obj, wandb_run_obj, loss_val, current_actual_lr):
+def step_log(config, step_num, ce_only_loss, curr_lr, device, wandb, profiler_obj, wandb_run_obj, loss_val, current_actual_lr):
 
     wandbConfig = config.wandbConfig
     trainingConfig = config.trainingConfig
@@ -149,7 +149,7 @@ def step_log(config, step_num, loss, curr_lr, device, wandb, profiler_obj, wandb
 
     if wandbConfig.is_wandb_enabled and wandb_run_obj and (step_num + 1) % wandbConfig.wandb_log_freq_metrics == 0:
         log_data = {
-            "train_loss": loss.item(),
+            "train_loss": ce_only_loss.item(),
             "iteration": step_num + 1,
             "learning_rate": curr_lr
         }

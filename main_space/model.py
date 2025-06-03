@@ -212,6 +212,18 @@ class MyTransformerLM(nn.Module):
 
         return self.forward_lm_head_layer(x), attns_per_block
 
+
+    def forward_with_out_hidd_for_distill(self, input_ids):
+        x = self.forward_embd_layer(input_ids)
+
+        hidd_states_per_block = []
+
+        for i, block in enumerate(self.transformer_blocks):
+            x, _ = block(x)
+            hidd_states_per_block.append(x)
+
+        return self.forward_lm_head_layer(x), hidd_states_per_block
+
     def forward(self, input_ids):
 
         x = self.forward_embd_layer(input_ids)
