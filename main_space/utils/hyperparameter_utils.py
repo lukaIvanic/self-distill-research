@@ -1,10 +1,11 @@
 import math
 
-from main_space.utils.settings_utils import get_training_config
+from main_space.utils.settings_utils import get_training_config, get_distill_config
 
 
 def calculate_distill_alpha(config, step_num):
-    return config.trainingConfig.distillConfig.distill_alpha * (step_num / config.trainingConfig.train_steps)
+
+    return get_distill_config().distill_alpha * (step_num / get_training_config().train_steps)
 
 def calculate_lr(step_num):
     """

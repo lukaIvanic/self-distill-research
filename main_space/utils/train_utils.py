@@ -1,21 +1,18 @@
-
 import torch
 from torch.amp import autocast
 from torch.nn import functional as F
 from torch.profiler import record_function
 
-
 import wandb
 
 from main_space.utils.log_utils import step_log
 from main_space.utils.hyperparameter_utils import usesAmpOrNot, calculate_lr, calculate_distill_alpha
-from main_space.utils.settings_utils import get_training_config
+from main_space.utils.settings_utils import get_training_config, get_distill_config
 
 
 def set_step_lr(lr, optimizer):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
-
 
 
 def get_loss_classic(model, criterion, batch_input_ids, batch_target_ids):
@@ -28,11 +25,8 @@ def get_loss_classic(model, criterion, batch_input_ids, batch_target_ids):
     return loss
 
 
-def get_loss_hidd_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids):
-
-
-    distillConfig = config.trainingConfig.distillConfig
-
+def get_loss_hidd_distill(step_num, model, criterion, batch_input_ids, batch_target_ids):
+    distillConfig = get_distill_config()
 
     with record_function("forward_pass_distill"):
         logits, hidd_outs_per_block = model.forward_with_out_hidd_for_distill(batch_input_ids)
@@ -50,7 +44,6 @@ def get_loss_hidd_distill(config, step_num, model, criterion, batch_input_ids, b
             raise ValueError(f"Teacher ({teacher_hidd_output.shape}) and student ({student_hidd_output.shape}) "
                              "hidden states must have the same shape for MSE distillation.")
 
-
         mse_loss = F.mse_loss(
             input=student_hidd_output,
             target=teacher_hidd_output,
@@ -60,17 +53,14 @@ def get_loss_hidd_distill(config, step_num, model, criterion, batch_input_ids, b
         mse_item = mse_loss.item()
         print(f"mse_item: {mse_item}")
 
-
-        #step_distill_alpha = calculate_distill_alpha(config, step_num)
+        # step_distill_alpha = calculate_distill_alpha(config, step_num)
         total_loss = ce_loss + 1.0 * mse_loss
 
     return total_loss, ce_loss
 
 
-def get_loss_attn_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids):
-
-    distillConfig = config.trainingConfig.distillConfig
-
+def get_loss_attn_distill(step_num, model, criterion, batch_input_ids, batch_target_ids):
+    distillConfig = get_distill_config()
 
     with record_function("forward_pass_distill"):
         logits, attns_per_block = model.forward_with_attn_for_distill(batch_input_ids)
@@ -92,7 +82,6 @@ def get_loss_attn_distill(config, step_num, model, criterion, batch_input_ids, b
         student_probs_for_kl = student_attns.view(B * H * T_q, T_k)
         student_log_probs_for_kl = student_attns_logged.view(B * H * T_q, T_k)
 
-
         teacher_probs_for_kl = teacher_attns.view(B * H * T_q, T_k)
         teacher_log_probs_for_kl = teacher_attns_logged.view(B * H * T_q, T_k)
 
@@ -106,14 +95,34 @@ def get_loss_attn_distill(config, step_num, model, criterion, batch_input_ids, b
         kl_item = kl_loss.item()
         print(f"kl_item: {kl_item}")
 
-
-        step_distill_alpha = calculate_distill_alpha(config, step_num)
+        step_distill_alpha = calculate_distill_alpha(step_num)
         total_loss = ce_loss + step_distill_alpha * kl_loss
 
-
-
-
     return total_loss, ce_loss
+
+
+def clip_gradients(model, optimizer):
+    trainingConfig = get_training_config()
+
+    if not trainingConfig.doesClipGradients:
+        return
+
+    # TODO: add elsewhere initial validation check for gradient norm value setting
+
+    if trainingConfig.scaler is not None:
+        with record_function("scaler_unscale_gradients"):
+            trainingConfig.scaler.unscale_(optimizer)
+
+
+    # TODO: implement logging for gradient_clipping before, and after, as a general checker.
+    with record_function("gradient_clipping"):
+        torch.nn.utils.clip_grad_norm_(
+            parameters=model.parameters(),
+            max_norm=trainingConfig.gradient_clip_norm,
+            norm_type=2.0,
+            error_if_nonfinite=True
+        )
+
 
 def make_train_step(step_num,
                     model,
@@ -124,9 +133,7 @@ def make_train_step(step_num,
                     batch_target_ids,  # Directly supplied
                     wandb_run_obj,
                     profiler_obj):
-
     trainingConfig = get_training_config()
-
 
     current_actual_lr = calculate_lr(
         step_num=step_num,
@@ -136,30 +143,33 @@ def make_train_step(step_num,
 
     model.train()
 
-    with autocast(device_type=device.type, enabled=usesAmpOrNot(trainingConfig.training_precision), dtype=trainingConfig.precision_dtype):
+    with autocast(device_type=device.type, enabled=usesAmpOrNot(trainingConfig.training_precision),
+                  dtype=trainingConfig.precision_dtype):
 
         if trainingConfig.doesDistill:
 
             if trainingConfig.distillConfig.distill_mode == 'attn_single':
-                loss, ce_only_loss = get_loss_attn_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids)
+                loss, ce_only_loss = get_loss_attn_distill(step_num, model, criterion, batch_input_ids,
+                                                           batch_target_ids)
             else:
-                loss, ce_only_loss = get_loss_hidd_distill(config, step_num, model, criterion, batch_input_ids, batch_target_ids)
+                loss, ce_only_loss = get_loss_hidd_distill(step_num, model, criterion, batch_input_ids,
+                                                           batch_target_ids)
 
 
         else:
             loss = get_loss_classic(model, criterion, batch_input_ids, batch_target_ids)
             ce_only_loss = loss
 
-
     with record_function("optimizer_zero_grad"):
         optimizer.zero_grad(set_to_none=True)
-
 
     if trainingConfig.training_precision == 'float16':
         scaler = trainingConfig.scaler
 
         with record_function("scaler_backward_pass"):
             scaler.scale(loss).backward()
+
+        clip_gradients(model, optimizer)
 
         with record_function("scaler_optimizer_step"):
             scaler.step(optimizer)
@@ -169,11 +179,15 @@ def make_train_step(step_num,
     else:
         with record_function("backward_pass"):
             loss.backward()
+
+        clip_gradients(model, optimizer)
+
         with record_function("optimizer_step"):
             optimizer.step()
 
     loss_val = loss.item()
 
+    # TODO rework step_log
     step_log(step_num=step_num,
              ce_only_loss=ce_only_loss,
              curr_lr=current_actual_lr,
@@ -183,7 +197,6 @@ def make_train_step(step_num,
              wandb_run_obj=wandb_run_obj,
              loss_val=loss_val,
              current_actual_lr=current_actual_lr)
-
 
 
 def validation_run(model, val_loader, criterion, device, wandb, wandb_run, ENABLE_WANDB, PIN_MEMORY_DATALOADER):

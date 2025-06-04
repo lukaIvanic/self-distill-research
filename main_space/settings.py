@@ -71,7 +71,7 @@ class TrainingConfig:
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 1  # Embedding dimension / model dimension
             self.num_heads = 1  # Number of attention heads
-            self.num_layers = 1  # Number of Transformer blocks
+            self.num_layers = 6  # Number of Transformer blocks
             self.ctx_len = 32  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.1
 
@@ -88,9 +88,6 @@ class TrainingConfig:
             self.teacher_index = 5
 
 
-
-
-
     def __init__(self):
         self.warmup_steps = int(1e2)
         self.train_steps = int(2e5)
@@ -99,13 +96,16 @@ class TrainingConfig:
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
         self.min_lr = 1e-5
         self.training_precision = "float32"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
+        # TODO: add elsewhere check for gradient norm setting
+        self.gradient_clip_norm = 1.0
         self.seed = 42
 
-        self.precision_dtype = None
-        self.initialize_precision()
-        self.scaler = None
 
-        self.doesDistill = False
+        self.precision_dtype = None
+        self.scaler = None
+        self.initialize_precision()
+        self.doesClipGradients = False
+        self.doesDistill = True
 
         self.hyperParamConfig = self.HyperparameterConfig()
         self.distillConfig = self.DistillConfig()
@@ -118,11 +118,9 @@ class TrainingConfig:
             print(f"Using Automatic Mixed Precision with dtype: {self.precision_dtype} and GradScaler.")
         elif self.training_precision == "bfloat16":
             self.precision_dtype = torch.bfloat16
-            self.scaler = None
             print(f"Using Automatic Mixed Precision with dtype: {self.precision_dtype}.")
         elif self.training_precision == "float32":
             self.precision_dtype = torch.float32
-            self.scaler = None
             print("Using float32 precision.")
 
 class Config:
