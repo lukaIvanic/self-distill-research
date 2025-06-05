@@ -107,6 +107,7 @@ def load_and_process_dataset_for_lm(
     )
 
     for split_name, ds in lm_datasets.items():
+        # TODO: fix this ugly print
         print(f"Split '{split_name}' processed into {len(ds)} blocks.")
         if len(ds) > 0:
             print(f"  Lengths - First block: {len(ds[0]['input_ids'])}, Last block: {len(ds[-1]['input_ids'])}")

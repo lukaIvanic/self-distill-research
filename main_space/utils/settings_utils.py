@@ -23,3 +23,6 @@ def get_hyperparameter_config():
 
 def get_distill_config():
     return get_training_config().distillConfig
+
+def get_checkpoint_config():
+    return get_project_config().checkpointConfig

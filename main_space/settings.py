@@ -22,7 +22,7 @@ class WandbConfig:
 
     def __init__(self):
         # --- Overall Logging Control ---
-        self.is_wandb_enabled = False  # Master switch for all W&B interactions
+        self.is_wandb_enabled = True  # Master switch for all W&B interactions
         self.is_profiler_enabled = False  # Master switch for torch.profiler
         self.is_trace_handler_custom = False  # Choose dir where pytorch.profiler will save measured metrics
 
@@ -46,7 +46,7 @@ class DatasetConfig:
         self.dataset_name = "wikitext"
         self.dataset_config = "wikitext-103-raw-v1"
         self.num_workers_dataloader = 0
-        self.pin_memory_dataloader = True
+        self.pin_memory_dataloader = True  # TODO: investigate this
         self.vocab_size_from_tokenizer = True
 
 
@@ -71,8 +71,8 @@ class TrainingConfig:
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 1  # Embedding dimension / model dimension
             self.num_heads = 1  # Number of attention heads
-            self.num_layers = 6  # Number of Transformer blocks
-            self.ctx_len = 32  # Max sequence length for dummy data and positional embeddings
+            self.num_layers = 1  # Number of Transformer blocks
+            self.ctx_len = 16  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.1
 
     class DistillConfig:
@@ -90,7 +90,7 @@ class TrainingConfig:
 
     def __init__(self):
         self.warmup_steps = int(1e2)
-        self.train_steps = int(2e5)
+        self.train_steps = int(1e4)
         self.peak_lr = 1e-3
         self.batch_size = 1
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
@@ -104,8 +104,8 @@ class TrainingConfig:
         self.precision_dtype = None
         self.scaler = None
         self.initialize_precision()
-        self.doesClipGradients = False
-        self.doesDistill = True
+        self.doesClipGradients = True
+        self.doesDistill = False
 
         self.hyperParamConfig = self.HyperparameterConfig()
         self.distillConfig = self.DistillConfig()
@@ -123,9 +123,25 @@ class TrainingConfig:
             self.precision_dtype = torch.float32
             print("Using float32 precision.")
 
+
+class CheckpointConfig:
+    def __init__(self):
+        # TODO: set option to save or not to save, be careful it doesn't
+        #       contradict with other wandb logging options,
+        #       in the validate_config function
+        self.testing_artifact_base = "my_testing_transformer_artifact"  # TODO: fix for consistency
+
+        self.checkpoint_frequency = 501
+
+        self.attempt_load_checkpoint_if_exists= True
+        self.strict_state_dict_loading = True
+
+
+
 class Config:
 
     def __init__(self):
         self.wandbConfig = WandbConfig()
         self.datasetConfig = DatasetConfig()
         self.trainingConfig = TrainingConfig()
+        self.checkpointConfig = CheckpointConfig()
