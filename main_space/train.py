@@ -43,7 +43,16 @@ def main():
         print(f"Train loader has ~{len(trainManage.train_dataloader)} batches of size {trainingConfig.batch_size}.")
 
 
-        for step_num in range(trainManage.current_train_step, trainingConfig.train_steps):
+        if trainManage.current_train_step >= trainingConfig.experimental_steps:
+            # TODO: fix and check experimental steps
+            raise ValueError("TODO: fix and check experimental steps")
+
+        if trainingConfig.experimental_stop:
+            steps = trainingConfig.experimental_steps
+        else:
+            steps = trainingConfig.train_steps
+
+        for step_num in range(trainManage.current_train_step, steps):
             with record_function("getting_next_batch"):
                 trainManage.next_batch()
             trainManage.make_train_step()

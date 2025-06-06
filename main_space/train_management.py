@@ -1,3 +1,4 @@
+import math
 import os
 
 import torch
@@ -239,6 +240,8 @@ class TrainManager:
 
     def save_checkpoint(self):
 
+        trainingConfig = self.projectConfig.trainingConfig
+
         if self.current_train_step is None:
             raise BrokenPipeError(
                 "trainManage.save_checkpoint was called, but self.current_train_step wasn't initialized yet. "
@@ -286,7 +289,7 @@ class TrainManager:
         except Exception as e:
             raise OSError(f"Error saving checkpoint to W&B: {e}")
 
-        artifact_name = self.projectConfig.checkpointConfig.testing_artifact_base  # TODO: currently only test implementation
+        artifact_name = self.projectConfig.checkpointConfig.artifact_base_name  # TODO: currently only test implementation
         artifact_type_custom = "model-checkpoint"
 
         artifact = wandb.Artifact(
@@ -302,8 +305,18 @@ class TrainManager:
 
         artifact.add_file(local_checkpoint_path, name="checkpoint.pt")  # name here is how it appears IN the artifact
 
-        aliases_to_log = ["latest",
-                          f"run_{self.wandb_run.id}_step_{self.current_train_step}"]  # TODO: investigate what these aliases actually mean
+
+        latest_alias = "latest"
+        id_step_alias = f"run_{self.wandb_run.id}_step_{self.current_train_step}"
+        lr_alias = f"lr {trainingConfig.peak_lr:.1e}"
+        ctx_alias = f"ctx 2**{math.log2(trainingConfig.hyperParamConfig.ctx_len):.1f}"
+        batch_tokens_alias = f"ba_toks {trainingConfig.batch_size*trainingConfig.hyperParamConfig.ctx_len}"
+
+        aliases_to_log = [latest_alias,
+                          id_step_alias,
+                          lr_alias,
+                          ctx_alias,
+                          batch_tokens_alias]  # TODO: investigate what these aliases actually mean
         self.wandb_run.log_artifact(artifact, aliases=aliases_to_log)
         print(f"Checkpoint artifact '{artifact_name}' logged to W&B with aliases: {aliases_to_log}")
 
@@ -344,7 +357,7 @@ class TrainManager:
                 "trainManage.load_checkpoint was called, but self.train_iter wasn't initialized yet. "
                 "Please call trainManage.init_train_iterator first.")
 
-        artifact_name = self.projectConfig.checkpointConfig.testing_artifact_base  # TODO: currently only test implementation
+        artifact_name = self.projectConfig.checkpointConfig.artifact_base_name  # TODO: currently only test implementation
         artifact_alias_to_load = "latest"  # This would come from self.projectConfig...
 
         artifact_full_path = f"{self.wandb_run.entity}/{self.wandb_run.project}/{artifact_name}:{artifact_alias_to_load}"
