@@ -121,7 +121,7 @@ class TrainManager:
     def setup_criterion(self):
         # For LM, CrossEntropyLoss ignores index -100 by default, which our DataLoader uses for label padding.
         # TODO: check out the pad token something about it being index -100 by default or something, which the dataloader uses also by default
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.CrossEntropyLoss(reduction='none')
 
     def init_train_iterator(self):
 

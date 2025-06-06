@@ -72,7 +72,7 @@ class TrainingConfig:
             self.d_model = 1  # Embedding dimension / model dimension
             self.num_heads = 1  # Number of attention heads
             self.num_layers = 1  # Number of Transformer blocks
-            self.ctx_len = 64  # Max sequence length for dummy data and positional embeddings
+            self.ctx_len = 256  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.1
 
     class DistillConfig:
@@ -92,7 +92,7 @@ class TrainingConfig:
         self.warmup_steps = int(1e3)
         self.train_steps = int(1e4)
         self.peak_lr = 3e-3
-        self.batch_size = 128  # TODO: make it a batch in tokens
+        self.batch_size = 16  # TODO: make it a batch in tokens
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
         self.min_lr = 1e-5
         self.training_precision = "float32"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"

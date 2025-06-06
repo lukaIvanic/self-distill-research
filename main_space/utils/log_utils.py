@@ -145,7 +145,7 @@ def print_model_params(model):
           f"BE A CIRCULAR IMPORT.")
 
 
-def step_log(step_num, ce_only_loss, curr_lr, device, wandb, profiler_obj, wandb_run_obj, loss_val, current_actual_lr):
+def step_log(step_num, ce_only_loss, periodic_losses, curr_lr, device, wandb, profiler_obj, wandb_run_obj, loss_val, current_actual_lr):
 
     wandbConfig = get_wandb_config()
     trainingConfig = get_training_config()
@@ -160,6 +160,10 @@ def step_log(step_num, ce_only_loss, curr_lr, device, wandb, profiler_obj, wandb
             "iteration": step_num + 1,
             "learning_rate": curr_lr
         }
+
+        period_size = 64
+        for i, period_loss in enumerate(periodic_losses):
+            log_data[f"loss_ctx_{i * period_size}_{(i+1)*period_size-1}"] = period_loss.item()
 
         if trainingConfig.scaler:
             log_data["grad_scaler_scale"] = trainingConfig.scaler.get_scale()
