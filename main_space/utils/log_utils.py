@@ -145,6 +145,35 @@ def print_model_params(model):
           f"BE A CIRCULAR IMPORT.")
 
 
+def log_validation_step(step_num, curr_avg_ce_loss, curr_avg_periodic_losses, device, profiler_obj, wandb_run_obj):
+
+    wandbConfig = get_wandb_config()
+    trainingConfig = get_training_config()
+
+    if (step_num + 1) % (wandbConfig.wandb_log_freq_metrics) == 0:
+        print(
+            f"Step [{step_num + 1}/{trainingConfig.train_steps}], Loss: {curr_avg_ce_loss:.4f}, Bucketed: {curr_avg_periodic_losses}")
+
+    if wandbConfig.is_wandb_enabled and wandb_run_obj and (step_num + 1) % wandbConfig.wandb_log_freq_metrics == 0:
+        log_data = {
+            "avg_validation_loss": curr_avg_ce_loss,
+            "iteration": step_num + 1,
+        }
+
+        period_size = 64
+        for i, period_loss in enumerate(curr_avg_periodic_losses):
+            log_data[f"avg_loss_ctx_{i * period_size}_{(i+1)*period_size-1}"] = period_loss
+
+        if torch.cuda.is_available():
+            log_data["gpu_mem_alloc_mb"] = torch.cuda.memory_allocated(device) / (1024 ** 2)
+            log_data["gpu_mem_reserved_mb"] = torch.cuda.memory_reserved(device) / (1024 ** 2)
+
+        wandb.log(log_data, step=step_num + 1)
+
+    # --- Inform the profiler that a step is complete (if profiler is active) ---
+    if profiler_obj:
+        profiler_obj.step()
+
 def step_log(step_num, ce_only_loss, periodic_losses, curr_lr, device, wandb, profiler_obj, wandb_run_obj, loss_val, current_actual_lr):
 
     wandbConfig = get_wandb_config()

@@ -69,10 +69,10 @@ class TrainingConfig:
 
         def __init__(self):
             self.vocab_size = 5000  # Dummy vocab size
-            self.d_model = 1  # Embedding dimension / model dimension
-            self.num_heads = 1  # Number of attention heads
-            self.num_layers = 1  # Number of Transformer blocks
-            self.ctx_len = 256  # Max sequence length for dummy data and positional embeddings
+            self.d_model = 256  # Embedding dimension / model dimension
+            self.num_heads = 8  # Number of attention heads
+            self.num_layers = 6  # Number of Transformer blocks
+            self.ctx_len = 512  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.1
 
     class DistillConfig:
@@ -91,8 +91,8 @@ class TrainingConfig:
     def __init__(self):
         self.warmup_steps = int(1e3)
         self.train_steps = int(1e4)
-        self.peak_lr = 3e-3
-        self.batch_size = 16  # TODO: make it a batch in tokens
+        self.peak_lr = 2e-3
+        self.batch_size = 32  # TODO: make it a batch in tokens
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
         self.min_lr = 1e-5
         self.training_precision = "float32"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
@@ -136,6 +136,7 @@ class CheckpointConfig:
 
         self.artifact_base_names = ["ctx_len_1M_exp"]
         self.artifact_base_name = "ctx_len_1M_exp"  # TODO: fix for consistency
+        self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")
 

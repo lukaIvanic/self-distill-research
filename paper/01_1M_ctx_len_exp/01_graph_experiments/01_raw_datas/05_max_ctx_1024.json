@@ -1,0 +1,30 @@
+{
+  "_runtime": 353.1688893,
+  "_step": 20,
+  "_timestamp": 1749306666.3009057,
+  "_wandb.runtime": 353,
+  "avg_loss_ctx_0_63": 4.200984703867059,
+  "avg_loss_ctx_128_191": 3.8565933076958903,
+  "avg_loss_ctx_192_255": 3.860820331071552,
+  "avg_loss_ctx_256_319": 3.848662175630268,
+  "avg_loss_ctx_320_383": 3.835768900419537,
+  "avg_loss_ctx_384_447": 3.8271345841257194,
+  "avg_loss_ctx_448_511": 3.8007771466907703,
+  "avg_loss_ctx_512_575": 3.8459344914084985,
+  "avg_loss_ctx_576_639": 3.784085738031488,
+  "avg_loss_ctx_640_703": 3.7724435831371106,
+  "avg_loss_ctx_64_127": 3.963342089402048,
+  "avg_loss_ctx_704_767": 3.738626442457501,
+  "avg_loss_ctx_768_831": 3.789225364986219,
+  "avg_loss_ctx_832_895": 3.751307826293142,
+  "avg_loss_ctx_896_959": 3.7063472145482113,
+  "avg_loss_ctx_960_1023": 3.724894122073525,
+  "avg_validation_loss": 3.831684288225676,
+  "graph_0": {
+    "_type": "graph-file",
+    "path": "media/graph/graph_0_summary_ec86ba5d776e7b358bba.graph.json",
+    "sha256": "ec86ba5d776e7b358bbab01a1eb4fb74f3907399d59fdc486fbc3e9e9d02f236",
+    "size": 13091
+  },
+  "iteration": 20
+}

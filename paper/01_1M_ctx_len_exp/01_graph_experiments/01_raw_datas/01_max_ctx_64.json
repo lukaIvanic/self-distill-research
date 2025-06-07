@@ -1,0 +1,15 @@
+{
+  "_runtime": 74.0256247,
+  "_step": 20,
+  "_timestamp": 1749304081.7165802,
+  "_wandb.runtime": 74,
+  "avg_loss_ctx_0_63": 3.929636001586914,
+  "avg_validation_loss": 3.929636051780299,
+  "graph_0": {
+    "_type": "graph-file",
+    "path": "media/graph/graph_0_summary_6b9340fac51e8bc68b0c.graph.json",
+    "sha256": "6b9340fac51e8bc68b0cdff5d94b26f10b816431cfd0dafbc4a99dd619fc133a",
+    "size": 13057
+  },
+  "iteration": 20
+}

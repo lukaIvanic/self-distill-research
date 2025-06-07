@@ -1,0 +1,18 @@
+{
+  "_runtime": 167.1248415,
+  "_step": 20,
+  "_timestamp": 1749305542.2615883,
+  "_wandb.runtime": 167,
+  "avg_loss_ctx_0_63": 4.06998684531764,
+  "avg_loss_ctx_128_191": 3.755271208913703,
+  "avg_loss_ctx_192_255": 3.693074653023168,
+  "avg_loss_ctx_64_127": 3.831181714409276,
+  "avg_validation_loss": 3.837378564633821,
+  "graph_0": {
+    "_type": "graph-file",
+    "path": "media/graph/graph_0_summary_fd9b6d1e280a0aba6da1.graph.json",
+    "sha256": "fd9b6d1e280a0aba6da1e9c73608c25dfe654e848b6685de7e4ed3010cf999de",
+    "size": 13066
+  },
+  "iteration": 20
+}

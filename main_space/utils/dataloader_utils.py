@@ -8,7 +8,7 @@ from main_space.data_management import load_and_process_dataset_for_lm, CausalLM
 SPLITS = ['train', 'validation', 'test']
 
 
-def get_next_batch(train_iter, train_dataloader, step_num, device, curr_epoch):
+def get_next_batch(dataset_iter, dataloader, step_num, device):
 
     datasetConfig = get_dataset_config()
 
@@ -16,16 +16,15 @@ def get_next_batch(train_iter, train_dataloader, step_num, device, curr_epoch):
 
     try:
 
-        batch = next(train_iter)
+        batch = next(dataset_iter)
 
     except StopIteration:
         new_epoch = True
-        print(f"Did {curr_epoch} epochs so far!")
 
         print(f"Epoch finished at step {step_num}. Resetting train_loader for continued iteration.")
 
-        train_iter = iter(train_dataloader)
-        batch = next(train_iter)
+        dataset_iter = iter(dataloader)
+        batch = next(dataset_iter)
 
 
     input_ids = batch['input_ids'].to(device,
@@ -33,7 +32,7 @@ def get_next_batch(train_iter, train_dataloader, step_num, device, curr_epoch):
     target_ids = batch['labels'].to(device,
                                     non_blocking=True if datasetConfig.pin_memory_dataloader and device.type == "cuda" else False)
 
-    return input_ids, target_ids, train_iter, new_epoch
+    return input_ids, target_ids, dataset_iter, new_epoch
 
 
 def get_vocabulary_size(tokenizer):

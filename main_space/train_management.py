@@ -77,6 +77,8 @@ class TrainManager:
             p_dropout=hyperParamConfig.dropout_rate
         ).to(self.device)
 
+        self.model.eval()
+
     def setup_wandb_watch(self):
 
         if (not self.projectConfig.wandbConfig.is_wandb_enabled) or (
@@ -161,11 +163,10 @@ class TrainManager:
                                   "Please call trainManage.setup_device first.")
 
         self.input_ids, self.target_ids, self.train_iter, new_epoch_happened = get_next_batch(
-            train_iter=self.train_iter,
-            train_dataloader=self.train_dataloader,
+            dataset_iter=self.train_iter,
+            dataloader=self.train_dataloader,
             step_num=self.current_train_step,
-            device=self.device,
-            curr_epoch=self.current_train_epoch)  # TODO: REMOVE THIS curr epoch
+            device=self.device)
 
         if new_epoch_happened:
             self.current_train_epoch += 1
