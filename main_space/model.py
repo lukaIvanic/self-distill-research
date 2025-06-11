@@ -19,10 +19,15 @@ class PositionalEmbedding(nn.Module):
         super().__init__()
         self.pos_embedding = nn.Embedding(max_seq_len, d_model)
 
+
+    # TODO: positions_embedded.expand(batch_size, -1, -1) might be
+    #       better for less memory and negligible compute increase.
     def forward(self, ctx_size, batch_size, device):
         positions = torch.arange(0, ctx_size, dtype=torch.long, device=device).unsqueeze(0)
         positions_embedded = self.pos_embedding(positions)
         return positions_embedded.repeat(batch_size, 1, 1)
+
+
 
 
 class Head(nn.Module):
@@ -31,6 +36,9 @@ class Head(nn.Module):
         self.key = nn.Linear(d_model, head_size, bias=False)
         self.query = nn.Linear(d_model, head_size, bias=False)
         self.value = nn.Linear(d_model, head_size, bias=False)
+
+        # TODO: the tril needs to go, either have one and pass it down
+        #       or recalculate on every turn.
         self.register_buffer('tril', torch.tril(torch.ones(ctx_size, ctx_size)))
         self.dropout = nn.Dropout(p_dropout)
 
@@ -44,7 +52,7 @@ class Head(nn.Module):
         # TODO: Is F for softmax the best here?
         wei = F.softmax(wei, dim=-1)
 
-        #attn_scores_for_distill = wei.clone()
+        # attn_scores_for_distill = wei.clone()
 
         wei = self.dropout(wei)
         v = self.value(x)
@@ -63,23 +71,63 @@ class MultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(p_dropout)  # Use global dropout
 
     def forward(self, x):
-
         head_outputs = [h(x) for h in self.heads]
         head_individual_outputs = [data[0] for data in head_outputs]
-        #head_individual_attn_scores = [data[1] for data in head_outputs]
+        # head_individual_attn_scores = [data[1] for data in head_outputs]
 
         out = torch.cat(head_individual_outputs, dim=-1)
         out = self.dropout(self.output_proj_mha(out))
 
-        #stacked_attn_scores = torch.stack(head_individual_attn_scores, dim=1)
+        # stacked_attn_scores = torch.stack(head_individual_attn_scores, dim=1)
 
         return out, None
+
+
+class OptimizedMultiHeadAttention(nn.Module):
+    def __init__(self, n_heads, head_size, d_model, p_dropout, ctx_size):
+        super().__init__()
+        self.n_heads = n_heads
+        self.d_model = d_model
+        self.head_size = head_size
+
+        # Single, large linear layer for all Q, K, V projections
+        self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)  # 3 * d_model for Q, K, V
+
+        self.output_proj_mha = nn.Linear(d_model, d_model)  # head_size * n_heads is just d_model
+        self.dropout = nn.Dropout(p_dropout)
+
+        # The causal mask buffer is still needed
+        self.register_buffer('tril', torch.tril(torch.ones(ctx_size, ctx_size)))
+
+    def forward(self, x):
+        B, T, C = x.shape  # Batch, Time, Channels (d_model)
+
+        # 1. Project to Q, K, V all at once
+        qkv = self.qkv_proj(x)  # (B, T, 3 * C)
+
+        # 2. Split into Q, K, V and reshape for multi-head computation
+        # (B, T, 3 * C) -> (B, T, 3, n_heads, head_size) -> (3, B, n_heads, T, head_size)
+        q, k, v = qkv.view(B, T, 3, self.n_heads, self.head_size).permute(2, 0, 3, 1, 4)
+
+        # 3. Perform scaled dot-product attention (now in a single, batched operation)
+        wei = (q @ k.transpose(-2, -1)) * (self.head_size ** -0.5)
+        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
+        wei = F.softmax(wei, dim=-1)
+        wei = self.dropout(wei)
+
+        out = wei @ v  # (B, n_heads, T, head_size)
+
+        # 4. "Contiguous" and reshape back to the original sequence format
+        # (B, n_heads, T, head_size) -> (B, T, n_heads, head_size) -> (B, T, C)
+        out = out.transpose(1, 2).contiguous().view(B, T, C)
+
+        # 5. Final output projection
+        return self.output_proj_mha(out), None  # Return None for attn scores to match API
 
 
 class FeedForward(nn.Module):
     def __init__(self, d_model, p_dropout):
         super().__init__()
-
 
         self.fc1 = nn.Linear(d_model, 4 * d_model)
         self.geluActivation = nn.GELU()
@@ -95,14 +143,23 @@ class FeedForward(nn.Module):
 
 
 class TransBlock(nn.Module):
-    def __init__(self, d_model, n_heads, p_dropout, ctx_size):
+    def __init__(self, d_model, n_heads, p_dropout, ctx_size, new_system):
         super().__init__()
         head_size = d_model // n_heads
-        self.sa = MultiHeadAttention(n_heads=n_heads,
-                                     head_size=head_size,
-                                     d_model=d_model,
-                                     p_dropout=p_dropout,
-                                     ctx_size=ctx_size)
+
+        if new_system:
+            self.sa = OptimizedMultiHeadAttention(n_heads=n_heads,
+                                                  head_size=head_size,
+                                                  d_model=d_model,
+                                                  p_dropout=p_dropout,
+                                                  ctx_size=ctx_size)
+        else:
+            self.sa = MultiHeadAttention(n_heads=n_heads,
+                                         head_size=head_size,
+                                         d_model=d_model,
+                                         p_dropout=p_dropout,
+                                         ctx_size=ctx_size)
+
         self.ffwd = FeedForward(d_model=d_model,
                                 p_dropout=p_dropout)
         self.ln1 = nn.LayerNorm(d_model)
@@ -113,6 +170,7 @@ class TransBlock(nn.Module):
         x = x + mha_output
         x = x + self.ffwd(self.ln2(x))
         return x, None
+
 
 class LMHead(nn.Module):
     def __init__(self, d_model, vocab_size, token_embd_weights):
@@ -125,11 +183,12 @@ class LMHead(nn.Module):
         x = self.final_norm(x)
         return self.lm_head(x)
 
+
 class MyTransformerLM(nn.Module):
-    def __init__(self, vocab_size, d_model, n_heads, n_layers, ctx_size, p_dropout):
+    def __init__(self, vocab_size, d_model, n_heads, n_layers, ctx_size, p_dropout, new_system=False):
         super().__init__()
 
-        self.initial_std = d_model**-0.5
+        self.initial_std = d_model ** -0.5
 
         self.token_embedding = TokenEmbedding(vocab_size, d_model)
         self.positional_embedding = PositionalEmbedding(ctx_size, d_model)
@@ -139,13 +198,11 @@ class MyTransformerLM(nn.Module):
             [TransBlock(d_model=d_model,
                         n_heads=n_heads,
                         p_dropout=p_dropout,
-                        ctx_size=ctx_size) for _ in range(n_layers)]
+                        ctx_size=ctx_size,
+                        new_system=new_system) for _ in range(n_layers)]
         )
 
-
         self.lm_head = LMHead(d_model, vocab_size, self.token_embedding.embedding.weight)
-
-
 
         self.apply(self._init_default_weights)
         self._apply_scaled_residual_initialization(n_layers)
@@ -176,13 +233,13 @@ class MyTransformerLM(nn.Module):
             else:
                 print(f"Warning: Could not find 'output_projection' in TransBlock's SelfAttention.")
 
-            if hasattr(block.ffwd, 'feed_forward_lay_second') and isinstance(block.ffwd.feed_forward_lay_second, nn.Linear):
+            if hasattr(block.ffwd, 'feed_forward_lay_second') and isinstance(block.ffwd.feed_forward_lay_second,
+                                                                             nn.Linear):
                 torch.nn.init.normal_(block.ffwd.feed_forward_lay_second.weight, mean=0.0, std=scaled_std)
                 if block.ffwd.feed_forward_lay_second.bias is not None:
                     torch.nn.init.zeros_(block.ffwd.feed_forward_lay_second.bias)
             else:
                 print(f"Warning: Could not find 'feed_forward_lay_second' in TransBlock's FeedForward.")
-
 
     def forward_embd_layer(self, input_ids):
         batch_size, ctx_len = input_ids.shape
@@ -193,7 +250,6 @@ class MyTransformerLM(nn.Module):
 
         x = tok_emb + pos_emb
         return self.dropout(x)
-
 
     def forward_lm_head_layer(self, x):
         logits = self.lm_head(x)
@@ -209,7 +265,6 @@ class MyTransformerLM(nn.Module):
             attns_per_block.append(attn_scores)
 
         return self.forward_lm_head_layer(x), attns_per_block
-
 
     def forward_with_out_hidd_for_distill(self, input_ids):
         x = self.forward_embd_layer(input_ids)
@@ -230,37 +285,3 @@ class MyTransformerLM(nn.Module):
             x, _ = block(x)
 
         return self.forward_lm_head_layer(x)
-
-
-
-# if __name__ == '__main__':
-#     # Quick test of the model structure
-#     vocab_size_test = 100
-#     d_model_test = 32
-#     num_heads_test = 4
-#     num_layers_test = 2
-#     max_seq_len_test = 16
-#     batch_size_test = 2
-#     dropout_test = 0.1
-#
-#     model = MyTransformerLM(
-#         vocab_size=vocab_size_test,
-#         d_model=d_model_test,
-#         n_heads=num_heads_test,
-#         n_layers=num_layers_test,
-#         ctx_size=max_seq_len_test,
-#         p_dropout=dropout_test
-#     )
-#
-#     print(model)
-#     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-#     print(f"Model has {num_params:,} trainable parameters.")
-#
-#     dummy_input_ids = torch.randint(0, vocab_size_test, (batch_size_test, max_seq_len_test))
-#     print(f"\nInput IDs shape: {dummy_input_ids.shape}")
-#
-#     seq_len = dummy_input_ids.size(1)
-#     output_logits = model(dummy_input_ids)
-#     print(f"Output logits shape: {output_logits.shape}")
-#     assert output_logits.shape == (batch_size_test, max_seq_len_test, vocab_size_test)
-#     print("\nModel structure seems callable.")
