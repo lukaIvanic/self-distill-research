@@ -26,184 +26,225 @@ def parse_args():
     parser.add_argument("--input-text", type=str, default=inputText, help="Text to run inference on")
     return parser.parse_args()
 
+
 @torch.no_grad()
 def generate_greedy(
-    model,
-    tokenizer,
-    prompt: str,
-    device: torch.device,
-    ctx_size: int,
-    max_new_tokens: int = 500, # Let's keep this reasonable for testing
-    print_each: bool = True,
+        model,
+        tokenizer,
+        prompt: str,
+        device: torch.device,
+        ctx_size: int,
+        max_new_tokens: int = 1000,
+        print_each: bool = True,
 ) -> str:
+
+
+    disable_cache = True
+
     """
-    Autoregressively generates text using a KV cache and a sliding window context.
+    Generates text using a KV cache with a nested structure and a sliding window.
+    This function is specifically tailored for the provided model's .inference methods.
     """
-    # 1. Encode the prompt and prepare initial input
+    # 1. Encode prompt and prepare initial state
     token_ids = tokenizer.encode(prompt).ids
     input_ids = torch.tensor([token_ids], dtype=torch.long, device=device)
-
-    # This will hold all generated tokens for final decoding
     generated_ids = token_ids.copy()
 
-    print(f"[INFO] Starting generation with prompt length = {len(token_ids)} tokens and context size = {ctx_size}")
+    print(f"[INFO] Starting generation: prompt_len={len(token_ids)}, ctx_size={ctx_size}")
     start_time = time.time()
 
-    # 2. Initialize KV Cache
-    # The cache will be a list of tuples, one for each transformer layer:
-    # [(k_layer0, v_layer0), (k_layer1, v_layer1), ...]
+    # 2. Initialize the cache. It starts as None.
     kv_cache = None
 
-    # 3. Autoregressive Generation Loop
+    # 3. The main generation loop
     for step in range(max_new_tokens):
-        # --- A. Prepare the input for this step ---
-        # On the first step, `input_ids` is the full prompt.
-        # On all subsequent steps, it's just the single last token.
-        # This is the core of KV cache efficiency.
 
-        # --- B. Manage Context Window by SLIDING the KV CACHE ---
-        if kv_cache is not None:
-            # Check if the cache is full
-            # We check the sequence length of the key tensor in the first layer's cache
-            cached_seq_len = kv_cache[0][0].size(-2) # Shape is [B, n_heads, seq_len, head_size]
-            if cached_seq_len >= ctx_size:
-                # The cache is full. We need to slide it by discarding the oldest tokens.
-                # Let's discard just one token from the start to make room for the new one.
-                # This creates a "sliding window" over the cache.
-                new_cache = []
-                for k, v in kv_cache:
-                    # Keep all but the first token in the sequence dimension (-2)
-                    k_trimmed = k[:, :, 1:, :]
-                    v_trimmed = v[:, :, 1:, :]
-                    new_cache.append((k_trimmed, v_trimmed))
-                kv_cache = new_cache
+        if not disable_cache:
+            # --- A. SLIDING WINDOW LOGIC FOR THE KV CACHE ---
+            if kv_cache is not None:
+                # First, determine the current length of the cache.
+                # We can reliably check the first key tensor of the first head of the first layer.
+                # kv_cache -> [layer0_cache, layer1_cache, ...]
+                # layer0_cache -> [head0_cache, head1_cache, ...]
+                # head0_cache -> (k_tensor, v_tensor)
+                # k_tensor -> shape [B, seq_len, head_size]
+                first_key_tensor = kv_cache[0][0][0]
+                cached_seq_len = first_key_tensor.size(1)
 
-        # --- C. Forward pass through the model ---
-        # The model's `inference_step` will handle the logic:
-        # - If kv_cache is None, it processes the whole `input_ids` (the prompt).
-        # - If kv_cache is not None, it processes `input_ids` (one token) and uses the cache.
-        logits, kv_cache = model.inference_step(input_ids, kv_cache)
+                # If the cache is at or over the context limit, we must slide it.
+                if cached_seq_len >= ctx_size:
+                    # To "slide", we rebuild the entire cache structure, but with trimmed tensors.
+                    new_kv_cache_after_sliding = []
+                    for layer_cache in kv_cache:  # This is a list of head_caches
+                        new_layer_cache = []
+                        for head_k, head_v in layer_cache:  # This is a (k, v) tensor tuple
+                            # Trim the oldest token (at index 0) from the sequence dimension (dim 1)
+                            k_trimmed = head_k[:, 1:, :]
+                            v_trimmed = head_v[:, 1:, :]
+                            new_layer_cache.append((k_trimmed, v_trimmed))
+                        new_kv_cache_after_sliding.append(new_layer_cache)
+                    kv_cache = new_kv_cache_after_sliding
 
-        # We only need the logits for the very last token to predict the next one
+            # --- B. MODEL FORWARD PASS ---
+            # On the first step, input_ids is the prompt and kv_cache is None.
+            # On subsequent steps, input_ids is just the newest token and we pass the (potentially slid) cache.
+            logits, kv_cache = model.inference_step(input_ids, kv_cache)
+            if disable_cache:
+                kv_cache = None
+
+        else:
+            input_for_model = torch.tensor([generated_ids[-ctx_size:]], device=device)
+            logits = model(input_for_model)  # Calling the regular forward pass
+
+        # --- C. SAMPLE NEXT TOKEN ---
         next_logits = logits[0, -1, :]
-
-        # --- D. Sample the next token (Greedy) ---
         next_id = torch.argmax(next_logits, dim=-1).item()
         generated_ids.append(next_id)
 
-        # --- E. Prepare for the NEXT loop iteration ---
-        # The input for the next step is just the single new token we generated.
+        # --- D. PREPARE FOR NEXT STEP ---
+        # The input for the next loop iteration is ONLY the new token.
         input_ids = torch.tensor([[next_id]], dtype=torch.long, device=device)
 
-        # --- F. Optional: Print the new token ---
+        # --- E. PRINT AND CHECK FOR STOP TOKEN ---
         if print_each:
-            # Using flush=True ensures tokens appear immediately
             print(tokenizer.decode([next_id]), end="", flush=True)
 
-        # Optional: Add a stopping condition if an End-Of-Sequence token is generated
-        if next_id == tokenizer.get_vocab().get("<|endoftext|>", -1) or next_id == tokenizer.get_vocab().get("</s>", -1):
+        # You should replace "2" with your actual EOS token ID if you have one
+        if next_id == 2:  # Example: Check for an end-of-sequence token
             print("\n[INFO] End-of-sequence token generated.")
             break
 
-    print() # Final newline
+    # 4. Final cleanup and return
+    print()  # Final newline
     elapsed = time.time() - start_time
-    tps = max_new_tokens / elapsed if elapsed > 0 else float('inf')
-    print(f"\n[INFO] Generation of {len(generated_ids) - len(token_ids)} new tokens took {elapsed:.3f}s ({tps:.2f} tokens/sec)")
+    tps = (step + 1) / elapsed if elapsed > 0 else float('inf')
+    print(f"\n[INFO] Generation of {step + 1} new tokens took {elapsed:.3f}s ({tps:.2f} tokens/sec)")
 
-    # Decode the full sequence of IDs
     full_text = tokenizer.decode(generated_ids)
     return full_text
 
 def main():
     args = parse_args()
+    skip_loading = True
 
     tokenizer_path =  os.path.join(os.getcwd(), "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")
 
     # Set up device
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     print(f"[INFO] Using device: {device}")
+    if not skip_loading:
+        # Initialize W&B API
+        api = wandb.Api()
+        artifact_path = f"{args.entity}/{args.project}/{args.artifact_name}:{args.alias}"
+        print(f"[INFO] Loading artifact '{artifact_path}'")
+        artifact = api.artifact(artifact_path, type="model-checkpoint")
+        download_dir = artifact.download()
+        print(f"[INFO] Artifact downloaded to: {download_dir}")
 
-    # Initialize W&B API
-    api = wandb.Api()
-    artifact_path = f"{args.entity}/{args.project}/{args.artifact_name}:{args.alias}"
-    print(f"[INFO] Loading artifact '{artifact_path}'")
-    artifact = api.artifact(artifact_path, type="model-checkpoint")
-    download_dir = artifact.download()
-    print(f"[INFO] Artifact downloaded to: {download_dir}")
+        # 1) Grab the run that produced this artifact:
+        creator = artifact.logged_by()  # a <wandb.apis.public.Run> stub
+        run_ref = f"{creator.entity}/{creator.project}/{creator.id}"
+        print(f"[INFO] Loading run that produced artifact: {run_ref}")
+        run = api.run(run_ref)
 
-    # 1) Grab the run that produced this artifact:
-    creator = artifact.logged_by()  # a <wandb.apis.public.Run> stub
-    run_ref = f"{creator.entity}/{creator.project}/{creator.id}"
-    print(f"[INFO] Loading run that produced artifact: {run_ref}")
-    run = api.run(run_ref)
+        # 2) Extract and print the run.config
+        config = run.config or {}
+        print("[INFO] Loaded run.config:")
+        for k, v in sorted(config.items()):
+            print(f"  - {k}: {v!r}")
 
-    # 2) Extract and print the run.config
-    config = run.config or {}
-    print("[INFO] Loaded run.config:")
-    for k, v in sorted(config.items()):
-        print(f"  - {k}: {v!r}")
+        # Read metadata for model hyperparameters
+        metadata = artifact.metadata or {}
+        print("[INFO] Loaded artifact metadata:")
+        for k,v in metadata.items():
+            print(f"  - {k}: {v}")
 
-    # Read metadata for model hyperparameters
-    metadata = artifact.metadata or {}
-    print("[INFO] Loaded artifact metadata:")
-    for k,v in metadata.items():
-        print(f"  - {k}: {v}")
+        # Extract required hyperparameters (with defaults or errors)
+        try:
+            vocab_size = int(config["vocab_size"])
+            d_model     = int(config["d_model"])
+            n_heads     = int(config["num_heads"])
+            n_layers    = int(config["num_layers"])
+            ctx_size    = int(config["ctx_len"])
+            p_dropout   = float(config["dropout_rate"])
+        except KeyError as e:
+            print(f"[ERROR] Missing hyperparameter in metadata: {e}")
+            return
 
-    # Extract required hyperparameters (with defaults or errors)
-    try:
-        vocab_size = int(config["vocab_size"])
-        d_model     = int(config["d_model"])
-        n_heads     = int(config["num_heads"])
-        n_layers    = int(config["num_layers"])
-        ctx_size    = int(config["ctx_len"])
-        p_dropout   = float(config["dropout_rate"])
-    except KeyError as e:
-        print(f"[ERROR] Missing hyperparameter in metadata: {e}")
-        return
+        # Instantiate model
+        print("[INFO] Instantiating model with loaded hyperparameters...")
+        model = MyTransformerLM(
+            vocab_size=vocab_size,
+            d_model=d_model,
+            n_heads=n_heads,
+            n_layers=n_layers,
+            ctx_size=ctx_size,
+            p_dropout=p_dropout,
+        )
+        model.to(device)
+        model.eval()
+        print("[INFO] Model architecture:")
+        print(model)
 
-    # Instantiate model
-    print("[INFO] Instantiating model with loaded hyperparameters...")
-    model = MyTransformerLM(
-        vocab_size=vocab_size,
-        d_model=d_model,
-        n_heads=n_heads,
-        n_layers=n_layers,
-        ctx_size=ctx_size,
-        p_dropout=p_dropout,
-    )
-    model.to(device)
-    model.eval()
-    print("[INFO] Model architecture:")
-    print(model)
+        # Load checkpoint
+        checkpoint_file = os.path.join(download_dir, "checkpoint.pt")
+        if not os.path.exists(checkpoint_file):
+            print(f"[ERROR] checkpoint.pt not found in {download_dir}")
+            return
 
-    # Load checkpoint
-    checkpoint_file = os.path.join(download_dir, "checkpoint.pt")
-    if not os.path.exists(checkpoint_file):
-        print(f"[ERROR] checkpoint.pt not found in {download_dir}")
-        return
+        print(f"[INFO] Loading state dict from {checkpoint_file}")
+        checkpoint = torch.load(checkpoint_file, map_location=device)
+        result = model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+        print(f"[INFO] Missing keys: {result.missing_keys}")
+        print(f"[INFO] Unexpected keys: {result.unexpected_keys}")
+        print("[INFO] Model weights loaded successfully.")
+        print(f"[INFO] Tokenizing input: \"{args.input_text}\"")
 
-    print(f"[INFO] Loading state dict from {checkpoint_file}")
-    checkpoint = torch.load(checkpoint_file, map_location=device)
-    result = model.load_state_dict(checkpoint["model_state_dict"], strict=True)
-    print(f"[INFO] Missing keys: {result.missing_keys}")
-    print(f"[INFO] Unexpected keys: {result.unexpected_keys}")
-    print("[INFO] Model weights loaded successfully.")
-    print(f"[INFO] Tokenizing input: \"{args.input_text}\"")
+
+    if skip_loading:
+        # Instantiate model
+
+        ctx_size = 512
+        print("[INFO] Instantiating model with loaded hyperparameters...")
+        model = MyTransformerLM(
+            vocab_size=5000,
+            d_model=512,
+            n_heads=4,
+            n_layers=2,
+            ctx_size=ctx_size,
+            p_dropout=0.1,
+        )
+        model.to(device)
+        model.eval()
+        print("[INFO] Model architecture:")
+        print(model)
+
+
 
 
     tokenizer = Tokenizer.from_file(tokenizer_path)
 
     # ... after loading model, tokenizer, and moving model to device ...
 
-    prompt = args.input_text
-    generated = generate_greedy(
-        model=model,
-        tokenizer=tokenizer,
-        prompt=prompt,
-        ctx_size=ctx_size,
-        device=device,
-        print_each=True,
-    )
+    if not skip_loading:
+        prompt = args.input_text
+        generated = generate_greedy(
+            model=model,
+            tokenizer=tokenizer,
+            prompt=prompt,
+            ctx_size=ctx_size,
+            device=device,
+        )
+
+    if skip_loading:
+        prompt = args.input_text
+        generated = generate_greedy(
+            model=model,
+            tokenizer=tokenizer,
+            prompt=prompt,
+            ctx_size=ctx_size,
+            device=device,
+        )
 
     print("[RESULT] Full generated text:")
     print(generated)
