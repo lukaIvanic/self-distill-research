@@ -19,15 +19,12 @@ class PositionalEmbedding(nn.Module):
         super().__init__()
         self.pos_embedding = nn.Embedding(max_seq_len, d_model)
 
-
     # TODO: positions_embedded.expand(batch_size, -1, -1) might be
     #       better for less memory and negligible compute increase.
     def forward(self, ctx_size, batch_size, device):
         positions = torch.arange(0, ctx_size, dtype=torch.long, device=device).unsqueeze(0)
         positions_embedded = self.pos_embedding(positions)
         return positions_embedded.repeat(batch_size, 1, 1)
-
-
 
 
 class Head(nn.Module):
@@ -59,6 +56,36 @@ class Head(nn.Module):
         out = wei @ v
         return out, None
 
+    def inference(self, x, kv_cache):
+
+        past_k, past_v = (None, None) if kv_cache is None else kv_cache
+
+
+        B, T_query, C = x.shape
+        q = self.query(x)
+        k = self.key(x)
+        v = self.value(x)
+
+        if past_k is not None:
+            k = torch.cat((past_k, k), dim=-2)
+            v = torch.cat((past_v, v), dim=-2)
+
+        new_head_cache = (k, v)
+        T_key = k.size(-2)
+
+        wei = q @ k.transpose(-2, -1) * k.size(-1) ** -0.5
+
+        if T_query > 1:
+            wei = wei.masked_fill(self.tril[:T_query, :T_key] == 0, float('-inf'))
+
+
+
+        wei = F.softmax(wei, dim=-1)
+        wei = self.dropout(wei)
+
+        out = wei @ v
+        return out, new_head_cache
+
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, n_heads, head_size, d_model, p_dropout, ctx_size):
@@ -82,6 +109,20 @@ class MultiHeadAttention(nn.Module):
 
         return out, None
 
+    def inference(self, x, kv_cache_list):
+        if kv_cache_list is None:
+            kv_cache_list = [None] * len(self.heads)
+
+        head_outputs = []
+        new_kv_cache_list = []
+        for i, h in enumerate(self.heads):
+            out, new_head_cache = h.inference(x, kv_cache_list[i])
+            head_outputs.append(out)
+            new_kv_cache_list.append(new_head_cache)
+
+        out = torch.cat(head_outputs, dim=-1)
+        out = self.dropout(self.output_proj_mha(out))
+        return out, new_kv_cache_list
 
 class OptimizedMultiHeadAttention(nn.Module):
     def __init__(self, n_heads, head_size, d_model, p_dropout, ctx_size):
@@ -170,6 +211,13 @@ class TransBlock(nn.Module):
         x = x + mha_output
         x = x + self.ffwd(self.ln2(x))
         return x, None
+
+
+    def inference(self, x, kv_cache):
+        mha_output, new_kv_cache = self.sa.inference(self.ln1(x), kv_cache)
+        x = x + mha_output
+        x = x + self.ffwd(self.ln2(x))
+        return x, new_kv_cache
 
 
 class LMHead(nn.Module):
@@ -285,3 +333,18 @@ class MyTransformerLM(nn.Module):
             x, _ = block(x)
 
         return self.forward_lm_head_layer(x)
+
+
+    def inference_step(self, input_ids, kv_caches=None):
+        x = self.forward_embd_layer(input_ids)
+
+        if kv_caches is None:
+            kv_caches = [None] * len(self.transformer_blocks)
+
+        new_kv_caches = []
+        for i, block in enumerate(self.transformer_blocks):
+            x, new_layer_cache = block.inference(x, kv_caches[i])
+            new_kv_caches.append(new_layer_cache)
+
+        logits = self.forward_lm_head_layer(x)
+        return logits, new_kv_caches

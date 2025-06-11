@@ -32,55 +32,86 @@ def generate_greedy(
     tokenizer,
     prompt: str,
     device: torch.device,
-    max_new_tokens: int = 50,
+    ctx_size: int,
+    max_new_tokens: int = 500, # Let's keep this reasonable for testing
     print_each: bool = True,
 ) -> str:
     """
-    Autoregressively generates text from `prompt` using greedy decoding.
-
-    Args:
-        model: your MyTransformerLM, already in eval() mode on `device`.
-        tokenizer: HF or tokenizers tokenizer with .encode(...).ids and .decode(...) methods.
-        prompt: the initial text to condition on.
-        device: torch.device("cpu") or torch.device("cuda").
-        max_new_tokens: maximum number of tokens to append.
-        print_each: if True, prints each new token as it’s generated.
-
-    Returns:
-        The full generated string: prompt + generated continuation.
+    Autoregressively generates text using a KV cache and a sliding window context.
     """
-    # 1) Encode prompt
-    encoding = tokenizer.encode(prompt)
-    token_ids = encoding.ids  # list[int]
+    # 1. Encode the prompt and prepare initial input
+    token_ids = tokenizer.encode(prompt).ids
     input_ids = torch.tensor([token_ids], dtype=torch.long, device=device)
 
-    generated = token_ids.copy()
+    # This will hold all generated tokens for final decoding
+    generated_ids = token_ids.copy()
 
-    print(f"[INFO] Starting generation: prompt length = {len(token_ids)} tokens")
+    print(f"[INFO] Starting generation with prompt length = {len(token_ids)} tokens and context size = {ctx_size}")
     start_time = time.time()
 
+    # 2. Initialize KV Cache
+    # The cache will be a list of tuples, one for each transformer layer:
+    # [(k_layer0, v_layer0), (k_layer1, v_layer1), ...]
+    kv_cache = None
+
+    # 3. Autoregressive Generation Loop
     for step in range(max_new_tokens):
-        # a) Forward pass
-        logits = model(input_ids)               # [1, seq_len, vocab_size]
-        next_logits = logits[0, -1, :]          # [vocab_size]
+        # --- A. Prepare the input for this step ---
+        # On the first step, `input_ids` is the full prompt.
+        # On all subsequent steps, it's just the single last token.
+        # This is the core of KV cache efficiency.
 
-        # b) Greedy pick
-        next_id = int(torch.argmax(next_logits, dim=-1))
-        generated.append(next_id)
+        # --- B. Manage Context Window by SLIDING the KV CACHE ---
+        if kv_cache is not None:
+            # Check if the cache is full
+            # We check the sequence length of the key tensor in the first layer's cache
+            cached_seq_len = kv_cache[0][0].size(-2) # Shape is [B, n_heads, seq_len, head_size]
+            if cached_seq_len >= ctx_size:
+                # The cache is full. We need to slide it by discarding the oldest tokens.
+                # Let's discard just one token from the start to make room for the new one.
+                # This creates a "sliding window" over the cache.
+                new_cache = []
+                for k, v in kv_cache:
+                    # Keep all but the first token in the sequence dimension (-2)
+                    k_trimmed = k[:, :, 1:, :]
+                    v_trimmed = v[:, :, 1:, :]
+                    new_cache.append((k_trimmed, v_trimmed))
+                kv_cache = new_cache
 
-        # c) Optionally print the decoded token
+        # --- C. Forward pass through the model ---
+        # The model's `inference_step` will handle the logic:
+        # - If kv_cache is None, it processes the whole `input_ids` (the prompt).
+        # - If kv_cache is not None, it processes `input_ids` (one token) and uses the cache.
+        logits, kv_cache = model.inference_step(input_ids, kv_cache)
+
+        # We only need the logits for the very last token to predict the next one
+        next_logits = logits[0, -1, :]
+
+        # --- D. Sample the next token (Greedy) ---
+        next_id = torch.argmax(next_logits, dim=-1).item()
+        generated_ids.append(next_id)
+
+        # --- E. Prepare for the NEXT loop iteration ---
+        # The input for the next step is just the single new token we generated.
+        input_ids = torch.tensor([[next_id]], dtype=torch.long, device=device)
+
+        # --- F. Optional: Print the new token ---
         if print_each:
-            next_token = tokenizer.decode([next_id])
-            print(f"[GENERATED {step+1:03d}] {next_id}: \"{next_token}\"")
+            # Using flush=True ensures tokens appear immediately
+            print(tokenizer.decode([next_id]), end="", flush=True)
 
-        # d) Prepare for next step
-        input_ids = torch.tensor([generated], dtype=torch.long, device=device)
+        # Optional: Add a stopping condition if an End-Of-Sequence token is generated
+        if next_id == tokenizer.get_vocab().get("<|endoftext|>", -1) or next_id == tokenizer.get_vocab().get("</s>", -1):
+            print("\n[INFO] End-of-sequence token generated.")
+            break
 
+    print() # Final newline
     elapsed = time.time() - start_time
-    print(f"[INFO] Generation of {max_new_tokens} tokens took {elapsed:.3f}s")
+    tps = max_new_tokens / elapsed if elapsed > 0 else float('inf')
+    print(f"\n[INFO] Generation of {len(generated_ids) - len(token_ids)} new tokens took {elapsed:.3f}s ({tps:.2f} tokens/sec)")
 
-    # Decode full sequence
-    full_text = tokenizer.decode(generated)
+    # Decode the full sequence of IDs
+    full_text = tokenizer.decode(generated_ids)
     return full_text
 
 def main():
@@ -169,8 +200,8 @@ def main():
         model=model,
         tokenizer=tokenizer,
         prompt=prompt,
+        ctx_size=ctx_size,
         device=device,
-        max_new_tokens=100,    # or whatever you like
         print_each=True,
     )
 
