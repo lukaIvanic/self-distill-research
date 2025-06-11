@@ -118,7 +118,7 @@ class TrainManager:
             raise BrokenPipeError("trainManage.setup_optimizer was called, but self.model wasn't initialized yet. "
                                   "Please call trainManage.setup_model first.")
 
-        self.optimizer = optim.AdamW(self.model.parameters(), lr=self.projectConfig.trainingConfig.peak_lr)
+        self.optimizer = optim.AdamW(self.model.parameters(), lr=self.projectConfig.trainingConfig.peak_lr, weight_decay=0.1)  # TODO: make weight_decay a hyperparam
 
     def setup_criterion(self):
         # For LM, CrossEntropyLoss ignores index -100 by default, which our DataLoader uses for label padding.
@@ -359,7 +359,7 @@ class TrainManager:
                 "Please call trainManage.init_train_iterator first.")
 
         artifact_name = self.projectConfig.checkpointConfig.artifact_base_name  # TODO: currently only test implementation
-        artifact_alias_to_load = "latest"  # This would come from self.projectConfig...
+        artifact_alias_to_load = "run_dl0n7uc3_step_9999"  # TODO: fix, this should come from checkpointConfig
 
         artifact_full_path = f"{self.wandb_run.entity}/{self.wandb_run.project}/{artifact_name}:{artifact_alias_to_load}"
 

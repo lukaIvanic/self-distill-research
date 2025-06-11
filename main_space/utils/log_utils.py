@@ -130,12 +130,11 @@ def initialize_wandb():
         if wandb_run:
             print(f"W&B Initialized. Run URL: {wandb_run.url}")
         else:
-            print("W&B initialization call returned None, but no error was raised. W&B features might be limited.")
+            raise BrokenPipeError("W&B initialization in log_utils.initialize_wandb call returned None, but no error was raised.")
 
         return wandb_run
     except Exception as e:
-        print(f"Error initializing W&B: {e}. W&B features will be disabled.")
-        return None
+        raise BrokenPipeError(f"Error during W&B initialization in log_utils.initialize_wandb: {e}.")
 
 
 def print_model_params(model):

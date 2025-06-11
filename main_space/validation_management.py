@@ -300,3 +300,4 @@ class ValidationManager:
 
         print("Missing keys:", load_result.missing_keys)
         print("Unexpected keys:", load_result.unexpected_keys)
+        print("Model successfully loaded from checkpoint.")

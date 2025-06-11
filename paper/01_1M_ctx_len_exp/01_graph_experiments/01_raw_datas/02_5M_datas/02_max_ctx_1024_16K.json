@@ -1,0 +1,1288 @@
+{
+  "_runtime": 3491.240583475,
+  "_step": 6200,
+  "_timestamp": 1749317215.7500854,
+  "_wandb.runtime": 3491,
+  "gpu_mem_alloc_mb": 304.353515625,
+  "gpu_mem_reserved_mb": 9616,
+  "grad_scaler_scale": 524288,
+  "gradients/lm_head.final_norm.bias": {
+    "_type": "histogram"
+  },
+  "gradients/lm_head.final_norm.weight": {
+    "_type": "histogram"
+  },
+  "gradients/lm_head.lm_head.bias": {
+    "_type": "histogram"
+  },
+  "gradients/positional_embedding.pos_embedding.weight": {
+    "_type": "histogram"
+  },
+  "gradients/token_embedding.embedding.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.ln1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.ln1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.ln2.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.ln2.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.0.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.ln1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.ln1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.ln2.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.ln2.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.1.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.ln1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.ln1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.ln2.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.ln2.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.2.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.ln1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.ln1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.ln2.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.ln2.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.3.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.ln1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.ln1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.ln2.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.ln2.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.4.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.ln1.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.ln1.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.ln2.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.ln2.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "gradients/transformer_blocks.5.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "graph_0": {
+    "_type": "graph-file",
+    "path": "media/graph/graph_0_summary_64ce110346bbab8fdb5f.graph.json",
+    "sha256": "64ce110346bbab8fdb5f070305b47f609b7c68db4f35fcc003120569d7b0a5a4",
+    "size": 16425
+  },
+  "iteration": 6200,
+  "learning_rate": 0.0007646247321538345,
+  "loss_ctx_0_63": 4.020547866821289,
+  "loss_ctx_128_191": 3.690984964370727,
+  "loss_ctx_192_255": 3.421456813812256,
+  "loss_ctx_256_319": 3.4079599380493164,
+  "loss_ctx_320_383": 3.4938313961029053,
+  "loss_ctx_384_447": 3.3003432750701904,
+  "loss_ctx_448_511": 3.453296661376953,
+  "loss_ctx_512_575": 3.2684988975524902,
+  "loss_ctx_576_639": 3.350982189178467,
+  "loss_ctx_640_703": 3.2756831645965576,
+  "loss_ctx_64_127": 3.887957811355591,
+  "loss_ctx_704_767": 3.486971139907837,
+  "loss_ctx_768_831": 3.2672476768493652,
+  "loss_ctx_832_895": 3.5275983810424805,
+  "loss_ctx_896_959": 3.4295413494110107,
+  "loss_ctx_960_1023": 3.1362192630767822,
+  "parameters/lm_head.final_norm.bias": {
+    "_type": "histogram"
+  },
+  "parameters/lm_head.final_norm.weight": {
+    "_type": "histogram"
+  },
+  "parameters/lm_head.lm_head.bias": {
+    "_type": "histogram"
+  },
+  "parameters/positional_embedding.pos_embedding.weight": {
+    "_type": "histogram"
+  },
+  "parameters/token_embedding.embedding.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.ln1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.ln1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.ln2.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.ln2.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.0.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.ln1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.ln1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.ln2.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.ln2.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.1.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.ln1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.ln1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.ln2.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.ln2.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.2.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.ln1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.ln1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.ln2.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.ln2.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.3.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.ln1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.ln1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.ln2.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.ln2.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.4.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.ffwd.fc1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.ffwd.fc1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.ffwd.feed_forward_lay_second.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.ffwd.feed_forward_lay_second.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.ln1.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.ln1.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.ln2.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.ln2.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.0.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.0.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.0.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.1.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.1.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.1.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.2.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.2.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.2.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.3.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.3.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.3.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.4.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.4.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.4.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.5.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.5.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.5.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.6.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.6.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.6.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.7.key.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.7.query.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.heads.7.value.weight": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.output_proj_mha.bias": {
+    "_type": "histogram"
+  },
+  "parameters/transformer_blocks.5.sa.output_proj_mha.weight": {
+    "_type": "histogram"
+  },
+  "train_loss": 3.4636950492858887
+}

@@ -31,8 +31,6 @@ def train_custom_bpe_tokenizer(
     # normalizers.Sequence allows combining multiple normalizers.
     tokenizer.normalizer = normalizers.Sequence([
         normalizers.NFKC()
-        # normalizers.Lowercase(), # Uncomment if you want to lowercase
-        # normalizers.StripAccents() # Uncomment if you want to remove accents
     ])
     print(f"Using Normalizer: {tokenizer.normalizer}")
 
@@ -57,7 +55,7 @@ def train_custom_bpe_tokenizer(
         vocab_size=vocab_size,
         min_frequency=min_frequency,
         special_tokens=special_tokens,
-        # show_progress=True, # Shows a progress bar during main_space
+        show_progress=True, # Shows a progress bar during main_space
         # initial_alphabet=pre_tokenizers.ByteLevel.alphabet() # Provides initial characters
     )
     print(f"Using Trainer with vocab_size={vocab_size}, min_frequency={min_frequency}")
@@ -70,6 +68,9 @@ def train_custom_bpe_tokenizer(
 
     # 7. Save the tokenizer
     # The tokenizer is saved as a single JSON file.
+
+    print(f"Trying to save tokenizer to {os.path.abspath(output_path)}")
+
     tokenizer.save(output_path)
     print(f"Tokenizer saved to {os.path.abspath(output_path)}")
 
@@ -96,13 +97,14 @@ def main(VOCAB_SIZE):
             print(f"Please ensure you have downloaded the WikiText-103 raw dataset to '{data_directory}'.")
             exit(1)
 
-    VERSION = 1
+    VERSION = 0
 
     TOKENIZER_OUTPUT_PATH = ""
     # Output path for the tokenizer file
     while TOKENIZER_OUTPUT_PATH == "" or os.path.exists(TOKENIZER_OUTPUT_PATH):
         VERSION += 1
-        TOKENIZER_OUTPUT_PATH = f"../tokenizer/{VERSION}_raw_wikitext103_bpe_vocab_{VOCAB_SIZE}.json"
+        TOKENIZER_OUTPUT_PATH = os.path.join(os.getcwd(), f"dataset_creation/tokenizer/{VERSION}_raw_wikitext103_bpe_vocab_{VOCAB_SIZE}.json")
+
 
     # --- Train ---
     trained_tokenizer = train_custom_bpe_tokenizer(
@@ -149,5 +151,7 @@ if __name__ == "__main__":
     # for vs in range(1000, 20001, 1000):
     #     main(vs)
 
-    for vs in [2000, 3000, 5000, 8000, 12000]:
-        main(vs)
+
+    main(5000)
+    #for vs in [2000, 3000, 5000, 8000, 12000]:
+     #   main(vs)

@@ -9,8 +9,18 @@ from matplotlib.colors import Normalize, LinearSegmentedColormap
 
 # --- Configuration ---
 
+DATASETS = ['1M_org', '5M']
+DATASET_SHOW = '5M'
 
-DATA_DIRECTORY = "01_raw_datas"
+USE_TRAIN_DATA = False
+
+DATA_DIRECTORY = "./paper/01_1M_ctx_len_exp/01_graph_experiments/01_raw_datas/"
+if DATASET_SHOW == '1M_org':
+    DATA_DIRECTORY = DATA_DIRECTORY
+elif DATASET_SHOW == '5M':
+    DATA_DIRECTORY = os.path.join(DATA_DIRECTORY, '02_5M_datas')
+
+
 FILE_PATTERN = "0*_max_ctx_*.json"
 CONDENSE = False # Condenses for eg. 1024-2047 sub-buckets of len 64,
                 # to one averaged out bucket, (in general)
@@ -49,30 +59,43 @@ def create_dummy_data(directory):
 def parse_run_data(filepath):
     """Parses a single JSON file to extract relevant loss data."""
     # Extract max_ctx from filename using regex
-    match = re.search(r'max_ctx_(\d+)', os.path.basename(filepath))
+    print(filepath)
+    print(os.path.basename(filepath))
+    match = re.search(r'max_ctx_(\d+)_(\d+)K', os.path.basename(filepath))
     if not match:
         return None
     max_ctx = int(match.group(1))
-
+    batch_size = int(match.group(2))
+    print(max_ctx, batch_size)
     with open(filepath, 'r') as f:
         raw_data = json.load(f)
 
-    avg_validation_loss = raw_data.get("avg_validation_loss")
-    bucketed_avg_losses = {}
+    if USE_TRAIN_DATA:
+        avg_loss = raw_data.get("train_loss")
+    else:
+        avg_loss = raw_data.get("avg_validation_loss")
 
+    print(avg_loss)
+    bucketed_avg_losses = {}
     # Extract bucketed losses
     for key, value in raw_data.items():
-        bucket_match = re.match(r'avg_loss_ctx_(\d+)_(\d+)', key)
+        if USE_TRAIN_DATA:
+            bucket_match = re.match(r'loss_ctx_(\d+)_(\d+)', key)
+        else:
+            bucket_match = re.match(r'avg_loss_ctx_(\d+)_(\d+)', key)
+
         if bucket_match:
             start_token = int(bucket_match.group(1))
             bucketed_avg_losses[start_token] = value
 
-    if not avg_validation_loss or not bucketed_avg_losses:
+    print(bucketed_avg_losses)
+    if not avg_loss or not bucketed_avg_losses:
         return None
 
     return {
         "max_ctx": max_ctx,
-        "avg_validation_loss": avg_validation_loss,
+        'batch_size': f"{batch_size}K",
+        "avg_loss": avg_loss,
         "bucketed_avg_losses": bucketed_avg_losses
     }
 
@@ -222,6 +245,8 @@ def main():
         create_dummy_data(DATA_DIRECTORY)
         return
 
+
+    print(f"Found files: {filepaths}")
     # 1. Read and parse all data files
     all_runs_data = []
     for fp in filepaths:
@@ -257,10 +282,11 @@ def main():
 
     for run_data in all_runs_data:
         max_ctx_val = run_data['max_ctx']
+        batch_size_tokens = run_data['batch_size']
         color = custom_cmap(norm(np.log2(max_ctx_val)))
 
         ax.axhline(
-            y=run_data['avg_validation_loss'],
+            y=run_data['avg_loss'],
             color=color,
             linestyle='--',
             alpha=0.8,
@@ -287,7 +313,7 @@ def main():
             markersize=8,
             linestyle='-',
             color=color,
-            label=f'Max Ctx = {max_ctx_val}'
+            label=f'Max Ctx = {max_ctx_val} ({batch_size_tokens})'
         )
 
         # 4. Finalize and show the plot
@@ -306,11 +332,11 @@ def main():
     ax.legend(title="Experiment")
 
     # Optional: Use a log scale for the x-axis if it helps visualization
-    # ax.set_xscale('log')
+    #ax.set_xscale('log')
 
     plt.tight_layout()
-    plt.savefig("loss_by_context_window.png", dpi=300)
-    print("Plot saved as 'loss_by_context_window.png'")
+    plt.savefig(f"./paper/01_1M_ctx_len_exp/01_graph_experiments/loss_by_context_window_{DATASET_SHOW}.png", dpi=300)
+    print(f"Plot saved as 'loss_by_context_window_{DATASET_SHOW}.png'")
     plt.show()
 
 

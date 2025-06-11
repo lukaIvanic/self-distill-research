@@ -1,6 +1,7 @@
 import torch
 from torch.profiler import record_function
 
+# --- End of setup ---
 from main_space.train_management import get_global_train_manager
 import main_space.utils.settings_utils as settings_utils
 from main_space.utils.log_utils import print_model_params

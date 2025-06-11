@@ -44,12 +44,12 @@ class Head(nn.Module):
         # TODO: Is F for softmax the best here?
         wei = F.softmax(wei, dim=-1)
 
-        attn_scores_for_distill = wei.clone()
+        #attn_scores_for_distill = wei.clone()
 
         wei = self.dropout(wei)
         v = self.value(x)
         out = wei @ v
-        return out, attn_scores_for_distill
+        return out, None
 
 
 class MultiHeadAttention(nn.Module):
@@ -66,14 +66,14 @@ class MultiHeadAttention(nn.Module):
 
         head_outputs = [h(x) for h in self.heads]
         head_individual_outputs = [data[0] for data in head_outputs]
-        head_individual_attn_scores = [data[1] for data in head_outputs]
+        #head_individual_attn_scores = [data[1] for data in head_outputs]
 
         out = torch.cat(head_individual_outputs, dim=-1)
         out = self.dropout(self.output_proj_mha(out))
 
-        stacked_attn_scores = torch.stack(head_individual_attn_scores, dim=1)
+        #stacked_attn_scores = torch.stack(head_individual_attn_scores, dim=1)
 
-        return out, stacked_attn_scores
+        return out, None
 
 
 class FeedForward(nn.Module):
@@ -109,10 +109,10 @@ class TransBlock(nn.Module):
         self.ln2 = nn.LayerNorm(d_model)
 
     def forward(self, x):
-        mha_output, attn_scores = self.sa(self.ln1(x))
+        mha_output, _ = self.sa(self.ln1(x))
         x = x + mha_output
         x = x + self.ffwd(self.ln2(x))
-        return x, attn_scores
+        return x, None
 
 class LMHead(nn.Module):
     def __init__(self, d_model, vocab_size, token_embd_weights):

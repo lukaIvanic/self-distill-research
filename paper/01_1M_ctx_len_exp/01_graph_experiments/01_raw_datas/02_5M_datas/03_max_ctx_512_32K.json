@@ -1,0 +1,24 @@
+{
+  "_runtime": 9.944855332,
+  "_step": 10,
+  "_timestamp": 1749489731.7006445,
+  "_wandb.runtime": 9,
+  "avg_loss_ctx_0_63": 3.7147117455800376,
+  "avg_loss_ctx_128_191": 3.354992734061347,
+  "avg_loss_ctx_192_255": 3.31401080555386,
+  "avg_loss_ctx_256_319": 3.327267567316691,
+  "avg_loss_ctx_320_383": 3.2858780225118003,
+  "avg_loss_ctx_384_447": 3.3021188841925726,
+  "avg_loss_ctx_448_511": 3.2524879243638782,
+  "avg_loss_ctx_64_127": 3.4360631306966147,
+  "avg_validation_loss": 3.373441298802694,
+  "gpu_mem_alloc_mb": 80.0888671875,
+  "gpu_mem_reserved_mb": 1766,
+  "graph_0": {
+    "_type": "graph-file",
+    "path": "media/graph/graph_0_summary_03ea20c892065869f260.graph.json",
+    "sha256": "03ea20c892065869f260820da8174b0f9b4defc61b6dface092874a1c6b2040f",
+    "size": 16301
+  },
+  "iteration": 10
+}

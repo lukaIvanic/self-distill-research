@@ -1,12 +1,12 @@
 
 def get_project_config():
-    from main_space.train_management import get_global_train_manager
-    return get_global_train_manager().projectConfig
+    # from main_space.train_management import get_global_train_manager
+    # return get_global_train_manager().projectConfig
 
 
     # TODO: this is horrible, fix this
-    # from main_space.validation_management import get_global_validation_manager
-    # return get_global_validation_manager().projectConfig
+    from main_space.validation_management import get_global_validation_manager
+    return get_global_validation_manager().projectConfig
 
 def get_training_config():
     return get_project_config().trainingConfig

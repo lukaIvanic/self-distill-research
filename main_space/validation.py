@@ -15,7 +15,7 @@ checkpointConfig = settings_utils.get_checkpoint_config()
 def setupForValidation():
     checkpointConfig.checkpoint_frequency = float('inf')
     checkpointConfig.attempt_load_checkpoint_if_exists = True
-    checkpointConfig.alias_to_load = "run_hp2wahr9_step_9999"
+    checkpointConfig.alias_to_load = "run_js1vc0fq_step_9999"
     wandbConfig.wandb_log_freq_metrics = 5
 
 
