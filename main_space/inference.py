@@ -11,7 +11,7 @@ def parse_args():
 
     projectName = "self-distill-research"
     entity = "luka_newbie"
-    inputText = "Default input text "
+    inputText = "The game began development in 2010 , carrying over a large portion of the work done on Valkyria Chronicles II . While it retained the standard features of the series , it also underwent multiple adjustments , such as making the game more forgiving for series"
 
     alias_tag = "100M_teacher:run_9ttfmtet_step_49994"
     artifactName = alias_tag.split(':')[0]
@@ -125,7 +125,7 @@ def generate_greedy(
 
 def main():
     args = parse_args()
-    skip_loading = True
+    skip_loading = False
 
     tokenizer_path =  os.path.join(os.getcwd(), "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")
 
