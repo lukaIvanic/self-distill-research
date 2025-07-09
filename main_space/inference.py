@@ -161,7 +161,7 @@ def generate_greedy(
         print("\n--- Token Generation Step ---")
         print(f"Input [{tokenizer.decode(generated_ids[org_tokens_len:])}]")
         print(a)
-        print("Top 3 Candidates:")
+        print(f"Top {top_k} Candidates:")
         for line in b:
             print(line)
         print("---------------------------\n")
