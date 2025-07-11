@@ -8,7 +8,7 @@ user: What is 6 + 2?
 agent: 6 + 2 = 8
 user: What is 3 + 2?
 agent:
- 5 @.@ 2 – 58 % of total children are 5 – 11 % of total children
+ 5.2 – 58 % of total children are 5 – 11 % of total children
   are 5 – 11 % of total children .
  In general , 5 – 11 % of total children are 6 – 8 % of total children .
   The number of primary schools is 1 in the state of Indiana .
@@ -46,8 +46,8 @@ agent:
             aged 153 – 77 aged 74 and aged 88 – 95 .
 
  The number of secondary school boys per child has increased to 14 – 11 and aged 15 – 16
-  in the state of Indiana . In 2012 , there were 2 @,@ 069 primary school pupils in Indiana ,
-  compared to 5 @,@ 962 total children in Indiana and 661 in Missouri .
+  in the state of Indiana . In 2012 , there were 2,069 primary school pupils in Indiana ,
+  compared to 5,962 total children in Indiana and 661 in Missouri .
 
  = = = Health = = =
  Healthcare is a major health care hub in Indiana and has many health care options .
@@ -71,14 +71,14 @@ agent:
  Indianapolis is home to the nation 's first medical services system
  and has the fourth largest hospital system in the United States with
   the largest number of private and public hospitals available .
-  There are over 60 @,@ 000 private and charitable services in the state ,
-   employing nearly 100 @,@ 000 . The hospital provides services to several
+  There are over 60,000 private and charitable services in the state ,
+   employing nearly 100,000 . The hospital provides services to several
     institutions throughout the state , including medical facilities such as
      Indiana Hospital , Indiana Hospital of Indiana Hospital and a hospital .
 
  = = = Healthcare = = =
  Indiana is the largest province of healthcare in the United States .
- There is a total of 84 @.@ 92 million people in the state ,
-  with 89 @.@ 1 million in the state , and 13 @.@ 3 million in the nation .
-  Indiana is home to the fourth @-@ largest hospital , the second @-@ largest
+ There is a total of 84.92 million people in the state ,
+  with 89.1 million in the state , and 13.3 million in the nation .
+  Indiana is home to the fourth-largest hospital , the second-largest
   medical center , in the

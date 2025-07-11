@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 import time
 import torch
 import wandb
@@ -43,6 +44,12 @@ def parse_args():
     parser.add_argument("--input-text", type=str, default=inputText, help="Text to run inference on")
     return parser.parse_args()
 
+def clean_decoded_text(text: str) -> str:
+    # Zamijeni "@-@" s "-" i očisti višestruke razmake
+    text = re.sub(r"\s*@-@\s*", "-", text)
+    text = re.sub(r"\s*@,@\s*", ",", text)       # "2 @,@ 500" → "2,500"
+    text = re.sub(r"\s*@\.@\s*", ".", text)
+    return text.strip()
 
 @torch.no_grad()
 def generate_greedy(
@@ -51,8 +58,12 @@ def generate_greedy(
         prompt: str,
         device: torch.device,
         ctx_size: int,
-        max_new_tokens: int = 1000,
+        max_new_tokens: int = 100,
         print_each: bool = True,
+        temperature: float = 0.4,
+        repetition_penalty: float = 1.30,
+        top_k: int = 50,
+        top_p: float = 0.8  # Vrijednosti blizu 1.0 su manje restriktivne, a blizu 0 su više.
 ) -> str:
     disable_cache = True
 
@@ -117,12 +128,44 @@ def generate_greedy(
         # Change start
         next_logits = logits[0, -1, :]
 
+        # ### NOVI KOD ZA SMANJENJE PONAVLJANJA - START ###
+        # Primijeni kaznu za ponavljanje (repetition penalty) na logite.
+        # Ovo smanjuje vjerojatnost tokena koji su se već pojavili u generiranom tekstu.
+
+        if step > 0:
+            for token_id in set(generated_ids):
+                if next_logits[token_id] > 0:
+                    next_logits[token_id] /= repetition_penalty
+                else:
+                    next_logits[token_id] *= repetition_penalty
+
+            # Primijeni temperaturu. Niže vrijednosti čine tekst fokusiranijim, a više kreativnijim.
+        if temperature > 0:
+            next_logits = next_logits / temperature
+
+        # ### NOVI KOD ZA Top-P UZORKOVANJE - START ###
+        # Top-P filtriranje se primjenjuje nakon temperature i kazne.
+        # Ono dinamički uklanja tokene s niskom vjerojatnošću.
+        if top_p < 1.0:
+            sorted_logits, sorted_indices = torch.sort(next_logits, descending=True)
+            cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+
+            # Ukloni tokene koji su izvan praga `top_p`
+            sorted_indices_to_remove = cumulative_probs > top_p
+            # Pomičemo udesno da zadržimo prvi token koji je prešao prag
+            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+            sorted_indices_to_remove[..., 0] = 0
+
+            indices_to_remove = sorted_indices[sorted_indices_to_remove]
+            next_logits[indices_to_remove] = float('-inf')
+        # ### NOVI KOD ZA Top-P UZORKOVANJE - KRAJ ###
+
         # --- 1. CALCULATE PROBABILITIES ---
         # Calculate absolute probabilities over the entire vocabulary by applying softmax
         all_probs = F.softmax(next_logits, dim=-1)
 
         # --- 2. PERFORM TOP-K SAMPLING ---
-        top_k = 10
+        #top_k = 10
         # Get the top k tokens, their scores (logits), and their indices (IDs)
         top_k_logits, top_k_indices = torch.topk(next_logits, top_k, dim=-1)
 
@@ -159,7 +202,7 @@ def generate_greedy(
 
         # Print the formatted results
         print("\n--- Token Generation Step ---")
-        print(f"Input [{tokenizer.decode(generated_ids[org_tokens_len:])}]")
+        print(f"Input [{clean_decoded_text(tokenizer.decode(generated_ids[org_tokens_len:]))}]")
         print(a)
         print(f"Top {top_k} Candidates:")
         for line in b:
@@ -187,7 +230,6 @@ def generate_greedy(
 
     full_text = tokenizer.decode(generated_ids)
     return full_text
-
 
 def main():
     args = parse_args()

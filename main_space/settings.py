@@ -69,9 +69,9 @@ class TrainingConfig:
 
         def __init__(self):
             self.vocab_size = 5000  # Dummy vocab size
-            self.d_model = 32  # Embedding dimension / model dimension
-            self.num_heads = 1  # Number of attention heads
-            self.num_layers = 1  # Number of Transformer blocks
+            self.d_model = 896  # Embedding dimension / model dimension
+            self.num_heads = 16  # Number of attention heads
+            self.num_layers = 12  # Number of Transformer blocks
             self.ctx_len = 512  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.0
 
@@ -90,12 +90,12 @@ class TrainingConfig:
 
     def __init__(self):
         self.warmup_steps = int(1e3)
-        self.train_steps = int(1e4)
+        self.train_steps = int(1e5)
         self.peak_lr = 1e-3
         self.batch_size = 4
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
         self.min_lr = 1e-4
-        self.training_precision = "float32"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
+        self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
         # TODO: add elsewhere check for gradient norm setting
         self.gradient_clip_norm = 1.0
         self.seed = 42
