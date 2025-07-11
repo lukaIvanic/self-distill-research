@@ -255,6 +255,42 @@ class MyTransformerLM(nn.Module):
         self.apply(self._init_default_weights)
         self._apply_scaled_residual_initialization(n_layers)
 
+    def resize_token_embeddings(self, new_num_tokens: int):
+        """
+        Prilagođava veličinu sloja za embedding tokena i izlaznog 'language modeling head' sloja
+        kako bi se prilagodili novoj veličini vokabulara. Ovo je ključno kada se
+        dodaju novi specijalni tokeni u tokenizer.
+        """
+        old_embedding = self.token_embedding.embedding
+        old_num_tokens, d_model = old_embedding.weight.size()
+
+        if new_num_tokens == old_num_tokens:
+            print("Veličina vokabulara se nije promijenila. Preskačem prilagodbu.")
+            return
+
+        # Kreiraj nove slojeve za embedding i lm_head s novom veličinom
+        new_embedding = nn.Embedding(new_num_tokens, d_model).to(old_embedding.weight.device)
+        new_lm_head = nn.Linear(d_model, new_num_tokens, bias=False).to(old_embedding.weight.device)
+
+        # Inicijaliziraj težine novih slojeva koristeći vašu postojeću metodu
+        self._init_default_weights(new_embedding)
+        self._init_default_weights(new_lm_head)
+
+        # Prekopiraj težine iz starih slojeva u nove.
+        # Ovo čuva svo znanje naučeno tijekom pre-treninga.
+        num_tokens_to_copy = min(old_num_tokens, new_num_tokens)
+        new_embedding.weight.data[:num_tokens_to_copy, :] = old_embedding.weight.data[:num_tokens_to_copy, :]
+        new_lm_head.weight.data[:num_tokens_to_copy, :] = self.lm_head.lm_head.weight.data[:num_tokens_to_copy, :]
+
+        # Zamijeni stare slojeve s novima, prilagođene veličine
+        self.token_embedding.embedding = new_embedding
+        self.lm_head.lm_head = new_lm_head
+
+        # Ključno: Ponovno poveži težine novog lm_head-a s novim embedding slojem
+        self.lm_head.lm_head.weight = self.token_embedding.embedding.weight
+
+        print(f"Prilagođena veličina embeddinga s {old_num_tokens} na {new_num_tokens} tokena.")
+
     def _init_default_weights(self, module):
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=self.initial_std)

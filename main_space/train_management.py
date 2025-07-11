@@ -57,7 +57,14 @@ class TrainManager:
         self.wandb_run = initialize_wandb()
 
     def setup_train_dataloader(self):
-        self.train_dataloader = get_dataloader(split='train')
+        # 1. Pozovi get_dataloader i uhvati obje povratne vrijednosti
+        dataloader, tokenizer = get_dataloader(split='train')
+
+        # 2. Postavi dataloader kao i prije
+        self.train_dataloader = dataloader
+
+        # 3. Ključan korak: Vrati obje vrijednosti
+        return self.train_dataloader, tokenizer
 
     def setup_model(self):
 
@@ -239,7 +246,7 @@ class TrainManager:
 
         self.save_checkpoint()
 
-    def save_checkpoint(self):
+    def save_checkpoint(self, force_save=False):
 
         trainingConfig = self.projectConfig.trainingConfig
 
@@ -248,7 +255,8 @@ class TrainManager:
                 "trainManage.save_checkpoint was called, but self.current_train_step wasn't initialized yet. "
                 "Please call trainManage.init_curr_step_counter first.")
 
-        if (self.current_train_step + 1) % self.projectConfig.checkpointConfig.checkpoint_frequency != 0:
+        is_time_to_save = (self.current_train_step + 1) % self.projectConfig.checkpointConfig.checkpoint_frequency == 0
+        if not is_time_to_save and not force_save:
             return
 
         if self.model is None:
@@ -359,7 +367,7 @@ class TrainManager:
                 "Please call trainManage.init_train_iterator first.")
 
         artifact_name = self.projectConfig.checkpointConfig.artifact_base_name  # TODO: currently only test implementation
-        artifact_alias_to_load = "run_dl0n7uc3_step_9999"  # TODO: fix, this should come from checkpointConfig
+        artifact_alias_to_load = checkpointConfig.alias_to_load
 
         artifact_full_path = f"{self.wandb_run.entity}/{self.wandb_run.project}/{artifact_name}:{artifact_alias_to_load}"
 

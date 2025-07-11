@@ -144,5 +144,5 @@ def main(VOCAB_SIZE):
 
 
 if __name__ == "__main__":
-    VOCAB_SIZE = 10000
+    VOCAB_SIZE = 5000
     main(VOCAB_SIZE)

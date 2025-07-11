@@ -18,6 +18,24 @@ DEFAULT_DATASET_CONFIG = "wikitext-103-raw-v1" # Raw version has less pre-proces
 DEFAULT_CACHE_DIR = os.path.join(os.getcwd(), "dataset_creation/temp_files/cache_hf_datasets")  # Cache for HuggingFace datasets library
 
 
+# Na vrh data_management.py dodajte ovu funkciju
+def apply_chat_template(example, tokenizer):
+    # Implementacija ChatML formata
+    formatted_conversation = ""
+    for message in example['conversations']:
+        role = message['from']
+        content = message['value']
+        if role == 'human':
+            role = 'user'  # Preimenovanje radi konzistencije
+        elif role == 'gpt':
+            role = 'assistant'  # Preimenovanje
+
+        formatted_conversation += f"<|im_start|>{role}\n{content}<|im_end|>\n"
+
+    return {"text": formatted_conversation}
+
+
+
 def load_and_process_dataset_for_lm(
         bos_token_id: int,
         eos_token_id: int
@@ -146,6 +164,70 @@ class CausalLMTrainingDataset(TorchDataset):
             "input_ids": torch.tensor(input_ids_chunk, dtype=torch.long),
             "labels": torch.tensor(labels_chunk, dtype=torch.long)
         }
+
+
+# U data_management.py, dodajte novu klasu
+class InstructionFinetuningDataset(TorchDataset):
+    def __init__(self, hf_dataset, tokenizer, max_seq_len):
+        self.hf_dataset = hf_dataset
+        self.tokenizer = tokenizer
+        self.max_seq_len = max_seq_len
+        self.im_start_token_id = tokenizer.convert_tokens_to_ids('<|im_start|>')
+        self.im_end_token_id = tokenizer.convert_tokens_to_ids('<|im_end|>')
+
+    def __len__(self):
+        return len(self.hf_dataset)
+
+    def __getitem__(self, idx):
+        formatted_text = self.hf_dataset[idx]['text']
+        tokenized_output = self.tokenizer(
+            formatted_text,
+            truncation=True,
+            max_length=self.max_seq_len,
+            padding="max_length"
+        )
+
+        input_ids = torch.tensor(tokenized_output['input_ids'])
+        labels = input_ids.clone()
+
+        # Inicijalno maskiramo sve tokene
+        labels[:] = -100
+
+        # Marker za početak odgovora asistenta
+        assistant_marker = self.tokenizer.encode("<|im_start|>assistant\n", add_special_tokens=False)
+        marker_tensor = torch.tensor(assistant_marker, dtype=torch.long)
+        marker_len = len(assistant_marker)
+
+        current_pos = 0
+        while current_pos < len(input_ids):
+            # Pronađi početak markera
+            start_marker_pos = -1
+            for i in range(current_pos, len(input_ids) - marker_len + 1):
+                if torch.equal(input_ids[i:i + marker_len], marker_tensor):
+                    start_marker_pos = i
+                    break
+
+            if start_marker_pos == -1: break
+
+            # Pronađi kraj odgovora (<|im_end|>)
+            end_marker_pos = -1
+            for i in range(start_marker_pos + marker_len, len(input_ids)):
+                if input_ids[i] == self.im_end_token_id:
+                    end_marker_pos = i
+                    break
+
+            # Ako nema kraja, idi do kraja sekvence (prije paddinga)
+            if end_marker_pos == -1:
+                pad_indices = (input_ids == self.tokenizer.pad_token_id).nonzero(as_tuple=True)[0]
+                end_marker_pos = pad_indices[0].item() if len(pad_indices) > 0 else len(input_ids)
+
+            # Otkrij (un-mask) labele koje model treba učiti
+            start_of_response = start_marker_pos + marker_len
+            labels[start_of_response:end_marker_pos] = input_ids[start_of_response:end_marker_pos]
+
+            current_pos = end_marker_pos + 1
+
+        return {"input_ids": input_ids, "labels": labels}
 
 
 if __name__ == '__main__':

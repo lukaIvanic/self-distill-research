@@ -31,7 +31,7 @@ class WandbConfig:
         self.wandb_entity = "luka_newbie"
         self.wandb_watch_level = "all"  # Options: "all", "gradients", "parameters", "none"
         self.wandb_log_freq_model_watch = 1000  # Frequency for wandb.watch
-        self.wandb_log_freq_metrics = 200  # Frequency for wandb.log() for loss, lr, etc.
+        self.wandb_log_freq_metrics = 20  # Frequency for wandb.log() for loss, lr, etc.
         self.does_wandb_log_graph = True  # Enable to get 'model' tab in wandb
 
         self.profilerConfig = self.ProfilerConfig()
@@ -40,9 +40,12 @@ class WandbConfig:
 
 class DatasetConfig:
     def __init__(self):
+        _current_dir = os.path.dirname(os.path.abspath(__file__))
+        _project_root = os.path.dirname(_current_dir)
 
-        self.tokenizer_path  = os.path.join(os.getcwd(), "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")
-        self.cache_dir = os.path.join(os.getcwd(), "/dataset_creation/temp_files/cache_hf_datasets")
+        self.tokenizer_path = os.path.join(_project_root, "dataset_creation", "tokenizer",
+                                           "bpe_hug_pub_5000_v1")
+        self.cache_dir = os.path.join(_project_root, "dataset_creation", "temp_files", "cache_hf_datasets")
         self.dataset_name = "wikitext"
         self.dataset_config = "wikitext-103-raw-v1"
         self.num_workers_dataloader = 0
@@ -75,6 +78,12 @@ class TrainingConfig:
             self.ctx_len = 2048  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.1
 
+    class FinetuneConfig:  # <-- NOVA KLASA
+        def __init__(self):
+            self.finetune_dataset_name = "Open-Orca/SlimOrca"  # Ime dataseta na Hugging Face Hubu
+            self.finetune_dataset_config = None  # Neki dataseti zahtijevaju specifičnu konfiguraciju
+            self.chat_template_format = "chatml"  # Format za instrukcije
+
     class DistillConfig:
 
         def __init__(self):
@@ -89,13 +98,14 @@ class TrainingConfig:
 
 
     def __init__(self):
-        self.warmup_steps = int(1e3)
-        self.train_steps = int(1e4)
-        self.peak_lr = 1e-3
-        self.batch_size = 16  # TODO: make it a batch in tokens
+        self.is_finetuning = True
+        self.warmup_steps = int(200)
+        self.train_steps = int(2000)
+        self.peak_lr = 1e-5
+        self.batch_size = 4  # TODO: make it a batch in tokens
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
         self.min_lr = 1e-4
-        self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
+        self.training_precision = "float16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
         # TODO: add elsewhere check for gradient norm setting
         self.gradient_clip_norm = 1.0
         self.seed = 42
@@ -113,6 +123,7 @@ class TrainingConfig:
 
         self.hyperParamConfig = self.HyperparameterConfig()
         self.distillConfig = self.DistillConfig()
+        self.finetuneConfig = self.FinetuneConfig()
 
 
     def initialize_precision(self):
