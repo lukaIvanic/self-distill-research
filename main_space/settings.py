@@ -69,10 +69,10 @@ class TrainingConfig:
 
         def __init__(self):
             self.vocab_size = 5000  # Dummy vocab size
-            self.d_model = 896  # Embedding dimension / model dimension
-            self.num_heads = 16  # Number of attention heads
-            self.num_layers = 12  # Number of Transformer blocks
-            self.ctx_len = 512  # Max sequence length for dummy data and positional embeddings
+            self.d_model = 32  # Embedding dimension / model dimension
+            self.num_heads = 1  # Number of attention heads
+            self.num_layers = 6  # Number of Transformer blocks
+            self.ctx_len = 64  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.0
 
     class DistillConfig:
@@ -90,9 +90,9 @@ class TrainingConfig:
 
     def __init__(self):
         self.warmup_steps = int(1e3)
-        self.train_steps = int(1e5)
+        self.train_steps = int(1e4)
         self.peak_lr = 1e-3
-        self.batch_size = 4
+        self.batch_size = 64
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
         self.min_lr = 1e-4
         self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
@@ -133,13 +133,13 @@ class CheckpointConfig:
         #       contradict with other wandb logging options,
         #       in the validate_config function
 
-        self.artifact_base_names = ["ctx_len_1M_exp", "100M_teacher"]
-        self.artifact_base_name = "ctx_len_1M_exp"  # TODO: fix for consistency
+        self.artifact_base_names = ["sub_1M_distill_dummies", "sub_1M_distill_dummies_smaller", "ctx_len_1M_exp", "100M_teacher"]
+        self.artifact_base_name = "sub_1M_distill_dummies_smaller"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")
 
-        self.checkpoint_frequency = 5000
+        self.checkpoint_frequency = 2000
 
         self.attempt_load_checkpoint_if_exists= False
         self.strict_state_dict_loading = True

@@ -8,8 +8,6 @@ from main_space.model import MyTransformerLM
 from tokenizers import Tokenizer
 import torch.nn.functional as F
 
-
-
 inputText = """
 user: What is 2 + 2?
 agent: 2 + 2 = 4
@@ -23,14 +21,14 @@ user: What is 3 + 2?
 agent: 
 """
 
-skip_loading = True
+skip_loading = False
 
 
 def parse_args():
     projectName = "self-distill-research"
     entity = "luka_newbie"
 
-    alias_tag = "100M_teacher:run_9ttfmtet_step_49994"
+    alias_tag = "ctx_len_1M_exp:v78"
     artifactName = alias_tag.split(':')[0]
     alias = alias_tag.split(':')[1]
 
@@ -44,12 +42,13 @@ def parse_args():
     parser.add_argument("--input-text", type=str, default=inputText, help="Text to run inference on")
     return parser.parse_args()
 
+
 def clean_decoded_text(text: str) -> str:
-    # Zamijeni "@-@" s "-" i očisti višestruke razmake
     text = re.sub(r"\s*@-@\s*", "-", text)
-    text = re.sub(r"\s*@,@\s*", ",", text)       # "2 @,@ 500" → "2,500"
+    text = re.sub(r"\s*@,@\s*", ",", text)  # "2 @,@ 500" → "2,500"
     text = re.sub(r"\s*@\.@\s*", ".", text)
     return text.strip()
+
 
 @torch.no_grad()
 def generate_greedy(
@@ -59,78 +58,33 @@ def generate_greedy(
         device: torch.device,
         ctx_size: int,
         max_new_tokens: int = 100,
-        print_each: bool = True,
-        temperature: float = 0.4,
-        repetition_penalty: float = 1.30,
+        print_each: bool = False,
+        never_stop: bool = True,  # doesn't stop generation on EOS token
+        temperature: float = 1.0,
+        repetition_penalty: float = 2.0,
         top_k: int = 50,
         top_p: float = 0.8  # Vrijednosti blizu 1.0 su manje restriktivne, a blizu 0 su više.
 ) -> str:
-    disable_cache = False
 
-    """
-    Generates text using a KV cache with a nested structure and a sliding window.
-    This function is specifically tailored for the provided model's .inference methods.
-    """
-    # 1. Encode prompt and prepare initial state
+    if not ( 0.1 < temperature < 5.0):
+        raise ValueError("Temperature should be between 0.1 and 5.0")
+
+    if not (0.01 < top_p < 1.0):
+        raise ValueError("Top P should be between 0.01 and 1.0")
+
+
     token_ids = tokenizer.encode(prompt).ids
-    input_ids = torch.tensor([token_ids], dtype=torch.long, device=device)
     org_tokens_len = len(token_ids)
     generated_ids = token_ids.copy()
 
     print(f"[INFO] Starting generation: prompt_len={len(token_ids)}, ctx_size={ctx_size}")
     start_time = time.time()
 
-    # 2. Initialize the cache. It starts as None.
-    kv_cache = None
-
-    # 3. The main generation loop
     for step in range(max_new_tokens):
+        input_for_model = torch.tensor([generated_ids[-ctx_size:]], device=device)
+        logits = model(input_for_model)  # Calling the regular forward pass
 
-        if not disable_cache:
-            # --- A. SLIDING WINDOW LOGIC FOR THE KV CACHE ---
-            if kv_cache is not None:
-                # First, determine the current length of the cache.
-                # We can reliably check the first key tensor of the first head of the first layer.
-                # kv_cache -> [layer0_cache, layer1_cache, ...]
-                # layer0_cache -> [head0_cache, head1_cache, ...]
-                # head0_cache -> (k_tensor, v_tensor)
-                # k_tensor -> shape [B, seq_len, head_size]
-                first_key_tensor = kv_cache[0][0][0]
-                cached_seq_len = first_key_tensor.size(1)
-
-                # If the cache is at or over the context limit, we must slide it.
-                if cached_seq_len >= ctx_size:
-                    # To "slide", we rebuild the entire cache structure, but with trimmed tensors.
-                    new_kv_cache_after_sliding = []
-                    for layer_cache in kv_cache:  # This is a list of head_caches
-                        new_layer_cache = []
-                        for head_k, head_v in layer_cache:  # This is a (k, v) tensor tuple
-                            # Trim the oldest token (at index 0) from the sequence dimension (dim 1)
-                            k_trimmed = head_k[:, 1:, :]
-                            v_trimmed = head_v[:, 1:, :]
-                            new_layer_cache.append((k_trimmed, v_trimmed))
-                        new_kv_cache_after_sliding.append(new_layer_cache)
-                    kv_cache = new_kv_cache_after_sliding
-
-            # --- B. MODEL FORWARD PASS ---
-            # On the first step, input_ids is the prompt and kv_cache is None.
-            # On subsequent steps, input_ids is just the newest token, and we pass the (potentially slid) cache.
-            logits, kv_cache = model.inference_step(input_ids, kv_cache)
-            if disable_cache:
-                kv_cache = None
-
-        else:
-            input_for_model = torch.tensor([generated_ids[-ctx_size:]], device=device)
-            logits = model(input_for_model)  # Calling the regular forward pass
-
-        # --- C. SAMPLE NEXT TOKEN ---
-
-        # Change start
         next_logits = logits[0, -1, :]
-
-        # ### NOVI KOD ZA SMANJENJE PONAVLJANJA - START ###
-        # Primijeni kaznu za ponavljanje (repetition penalty) na logite.
-        # Ovo smanjuje vjerojatnost tokena koji su se već pojavili u generiranom tekstu.
 
         if step > 0:
             for token_id in set(generated_ids):
@@ -139,94 +93,76 @@ def generate_greedy(
                 else:
                     next_logits[token_id] *= repetition_penalty
 
-            # Primijeni temperaturu. Niže vrijednosti čine tekst fokusiranijim, a više kreativnijim.
-        if temperature > 0:
-            next_logits = next_logits / temperature
 
-        # ### NOVI KOD ZA Top-P UZORKOVANJE - START ###
-        # Top-P filtriranje se primjenjuje nakon temperature i kazne.
-        # Ono dinamički uklanja tokene s niskom vjerojatnošću.
-        if top_p < 1.0:
-            sorted_logits, sorted_indices = torch.sort(next_logits, descending=True)
-            cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+        next_logits = next_logits / temperature
 
-            # Ukloni tokene koji su izvan praga `top_p`
-            sorted_indices_to_remove = cumulative_probs > top_p
-            # Pomičemo udesno da zadržimo prvi token koji je prešao prag
-            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-            sorted_indices_to_remove[..., 0] = 0
+        sorted_logits, sorted_indices = torch.sort(next_logits, descending=True)
+        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
 
-            indices_to_remove = sorted_indices[sorted_indices_to_remove]
-            next_logits[indices_to_remove] = float('-inf')
-        # ### NOVI KOD ZA Top-P UZORKOVANJE - KRAJ ###
+        sorted_indices_to_remove = cumulative_probs > top_p
+        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+        sorted_indices_to_remove[..., 0] = 0
 
-        # --- 1. CALCULATE PROBABILITIES ---
-        # Calculate absolute probabilities over the entire vocabulary by applying softmax
+        indices_to_remove = sorted_indices[sorted_indices_to_remove]
+        next_logits[indices_to_remove] = float('-inf')
+
         all_probs = F.softmax(next_logits, dim=-1)
 
         # --- 2. PERFORM TOP-K SAMPLING ---
-        #top_k = 10
-        # Get the top k tokens, their scores (logits), and their indices (IDs)
         top_k_logits, top_k_indices = torch.topk(next_logits, top_k, dim=-1)
-
-        # Calculate the RELATIVE probabilities for just the top k tokens
         top_k_relative_probs = F.softmax(top_k_logits, dim=-1)
-
-        # Sample from the top k based on their relative probabilities
         sampled_relative_index = torch.multinomial(top_k_relative_probs, num_samples=1)
-
-        # Get the actual token ID that was chosen from the sampling
         next_id = top_k_indices[sampled_relative_index.item()].item()
         generated_ids.append(next_id)
-
-        # --- 3. GATHER DATA FOR PRINTING ---
-        # Get the absolute probability of the single token that was chosen
         chosen_token_abs_prob = all_probs[next_id].item()
-
-        # Get the absolute probabilities for each of the top_k tokens
         top_k_abs_probs = all_probs[top_k_indices]
 
-
         if print_each:
+            print_verbose(chosen_token_abs_prob,
+                          generated_ids,
+                          next_id,
+                          org_tokens_len,
+                          tokenizer,
+                          top_k,
+                          top_k_abs_probs,
+                          top_k_indices,
+                          top_k_relative_probs)
+        else:
             print(tokenizer.decode([next_id], skip_special_tokens=False), end="", flush=True)
 
-        else:
 
-            # --- 4. FORMAT AND PRINT OUTPUT ---
-            # Format the string for the final chosen token
-            a = f"Chosen: '{tokenizer.decode([next_id])}' (Absolute Probability: {chosen_token_abs_prob:.2%})"
+        if next_id == 2:  # Check for an end-of-sequence token
+            print("<EOT>", end="")
+            if not never_stop:
+                break
 
-            # Prepare the list of top candidates with their detailed probabilities
-            b = ["" for _ in range(top_k)]
-            for i in range(top_k):
-                token_id = top_k_indices[i].item()
-                token_str = tokenizer.decode([token_id])
-                abs_prob = top_k_abs_probs[i].item()
-                rel_prob = top_k_relative_probs[i].item()
-                b[i] = f"  - Top {i + 1}: '{token_str}' (Abs Prob: {abs_prob:.2%}, Rel Prob: {rel_prob:.2%})"
-
-            # Print the formatted results
-            print("\n--- Token Generation Step ---")
-            print(f"Input [{clean_decoded_text(tokenizer.decode(generated_ids[org_tokens_len:]))}]")
-            print(a)
-            print(f"Top {top_k} Candidates:")
-            for line in b:
-                print(line)
-            print("---------------------------\n")
-
-
-
-        if next_id == 2:  # Example: Check for an end-of-sequence token
-            print("<EOT>", end="", flush=True)
-
-    # 4. Final cleanup and return
-    print()  # Final newline
+    print("DONE WITH STEPS")
     elapsed = time.time() - start_time
-    tps = (step + 1) / elapsed if elapsed > 0 else float('inf')
+    tps = (step + 1) / elapsed
     print(f"\n[INFO] Generation of {step + 1} new tokens took {elapsed:.3f}s ({tps:.2f} tokens/sec)")
 
-    full_text = tokenizer.decode(generated_ids)
+    full_text = clean_decoded_text(tokenizer.decode(generated_ids))
     return full_text
+
+
+def print_verbose(chosen_token_abs_prob, generated_ids, next_id, org_tokens_len, tokenizer, top_k, top_k_abs_probs,
+                  top_k_indices, top_k_relative_probs):
+    a = f"Chosen: '{tokenizer.decode([next_id])}' (Absolute Probability: {chosen_token_abs_prob:.2%})"
+    b = ["" for _ in range(top_k)]
+    for i in range(top_k):
+        token_id = top_k_indices[i].item()
+        token_str = tokenizer.decode([token_id])
+        abs_prob = top_k_abs_probs[i].item()
+        rel_prob = top_k_relative_probs[i].item()
+        b[i] = f"  - Top {i + 1}: '{token_str}' (Abs Prob: {abs_prob:.2%}, Rel Prob: {rel_prob:.2%})"
+    print("\n--- Token Generation Step ---")
+    print(f"Input [{clean_decoded_text(tokenizer.decode(generated_ids[org_tokens_len:]))}]")
+    print(a)
+    print(f"Top {top_k} Candidates:")
+    for line in b:
+        print(line)
+    print("---------------------------\n")
+
 
 def main():
     args = parse_args()
