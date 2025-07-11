@@ -140,8 +140,8 @@ def initialize_wandb():
 def print_model_params(model):
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model instantiated with {num_params:,} trainable parameters.")
-    print(f"FIX print_model_params, CURRENTLY MODEL IS BEING PASSED INTO IT, BECAUSE OTHERWISE IT WOULD"
-          f"BE A CIRCULAR IMPORT.")
+    # print(f"FIX print_model_params, CURRENTLY MODEL IS BEING PASSED INTO IT, BECAUSE OTHERWISE IT WOULD"
+    #       f"BE A CIRCULAR IMPORT.")
 
 
 def log_validation_step(step_num, curr_avg_ce_loss, curr_avg_periodic_losses, device, profiler_obj, wandb_run_obj):

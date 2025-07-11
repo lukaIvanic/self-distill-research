@@ -1,3 +1,5 @@
+import os
+
 import torch
 from torch.profiler import record_function
 
@@ -7,9 +9,54 @@ import main_space.utils.settings_utils as settings_utils
 from main_space.utils.log_utils import print_model_params
 from main_space.utils.checker_utils import validate_config
 
+from tokenizers import Tokenizer
+
+
 trainManage = get_global_train_manager()
 
 trainingConfig = settings_utils.get_training_config()
+
+tokenizer_path = os.path.join(os.getcwd(), "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")
+tokenizer = Tokenizer.from_file(tokenizer_path)
+
+def print_input_text(input_tensor: torch.Tensor):
+    """
+    Prints a comprehensive set of details about a PyTorch tensor.
+
+    Args:
+        input_tensor: The PyTorch tensor to inspect.
+    """
+    if not isinstance(input_tensor, torch.Tensor):
+        print(f"Input is not a PyTorch tensor. It is of type: {type(input_tensor)}")
+        return
+
+    print("--- General Properties ---")
+    print(f"Type: {type(input_tensor)}")
+    print(f"Data Type (dtype): {input_tensor.dtype}")
+    print(f"Shape (size): {input_tensor.shape}")
+    print(f"Number of elements (numel): {input_tensor.numel()}")
+    print(f"Device: {input_tensor.device}")
+
+    print("\n--- Memory and Layout ---")
+    print(f"Memory Layout: {input_tensor.layout}")
+    if input_tensor.is_contiguous():
+        print("Is Contiguous: True")
+    else:
+        print("Is Contiguous: False")
+        print(f"Memory format for non-contiguous tensor might be, for example, {torch.channels_last}")
+
+    # Storage provides a view into the underlying 1D data array.
+    if input_tensor.storage() is not None:
+        print(f"Underlying storage type: {input_tensor.storage().type()}")
+        print(f"Storage size: {len(input_tensor.storage())}")
+        print(f"Storage device: {input_tensor.storage().device}")
+
+
+    input_text = tokenizer.decode(list(input_tensor[0]), skip_special_tokens=False)
+    print(f"input_text: {input_text[:20]} ... {input_text[-20:]}")
+
+
+
 
 
 def main():
@@ -27,7 +74,6 @@ def main():
         trainManage.setup_wandb_watch()
         trainManage.setup_optimizer()
         trainManage.setup_criterion()
-
 
 
         # TODO fix this logging
@@ -56,6 +102,9 @@ def main():
         for step_num in range(trainManage.current_train_step, steps):
             with record_function("getting_next_batch"):
                 trainManage.next_batch()
+
+            #print_input_text(trainManage.input_ids)
+
             trainManage.make_train_step()
 
 
