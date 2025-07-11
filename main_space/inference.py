@@ -23,7 +23,7 @@ user: What is 3 + 2?
 agent: 
 """
 
-skip_loading = False
+skip_loading = True
 
 
 def parse_args():
@@ -65,7 +65,7 @@ def generate_greedy(
         top_k: int = 50,
         top_p: float = 0.8  # Vrijednosti blizu 1.0 su manje restriktivne, a blizu 0 su više.
 ) -> str:
-    disable_cache = True
+    disable_cache = False
 
     """
     Generates text using a KV cache with a nested structure and a sliding window.
@@ -187,40 +187,37 @@ def generate_greedy(
         top_k_abs_probs = all_probs[top_k_indices]
 
 
-        # --- 4. FORMAT AND PRINT OUTPUT ---
-        # Format the string for the final chosen token
-        a = f"Chosen: '{tokenizer.decode([next_id])}' (Absolute Probability: {chosen_token_abs_prob:.2%})"
-
-        # Prepare the list of top candidates with their detailed probabilities
-        b = ["" for _ in range(top_k)]
-        for i in range(top_k):
-            token_id = top_k_indices[i].item()
-            token_str = tokenizer.decode([token_id])
-            abs_prob = top_k_abs_probs[i].item()
-            rel_prob = top_k_relative_probs[i].item()
-            b[i] = f"  - Top {i + 1}: '{token_str}' (Abs Prob: {abs_prob:.2%}, Rel Prob: {rel_prob:.2%})"
-
-        # Print the formatted results
-        print("\n--- Token Generation Step ---")
-        print(f"Input [{clean_decoded_text(tokenizer.decode(generated_ids[org_tokens_len:]))}]")
-        print(a)
-        print(f"Top {top_k} Candidates:")
-        for line in b:
-            print(line)
-        print("---------------------------\n")
-
-        continue
-        # change end
-
-        # --- E. PRINT AND CHECK FOR STOP TOKEN ---
         if print_each:
-            print(tokenizer.decode([next_id]), end="", flush=True)
+            print(tokenizer.decode([next_id], skip_special_tokens=False), end="", flush=True)
 
-        # You should replace "2" with your actual EOS token ID if you have one
+        else:
+
+            # --- 4. FORMAT AND PRINT OUTPUT ---
+            # Format the string for the final chosen token
+            a = f"Chosen: '{tokenizer.decode([next_id])}' (Absolute Probability: {chosen_token_abs_prob:.2%})"
+
+            # Prepare the list of top candidates with their detailed probabilities
+            b = ["" for _ in range(top_k)]
+            for i in range(top_k):
+                token_id = top_k_indices[i].item()
+                token_str = tokenizer.decode([token_id])
+                abs_prob = top_k_abs_probs[i].item()
+                rel_prob = top_k_relative_probs[i].item()
+                b[i] = f"  - Top {i + 1}: '{token_str}' (Abs Prob: {abs_prob:.2%}, Rel Prob: {rel_prob:.2%})"
+
+            # Print the formatted results
+            print("\n--- Token Generation Step ---")
+            print(f"Input [{clean_decoded_text(tokenizer.decode(generated_ids[org_tokens_len:]))}]")
+            print(a)
+            print(f"Top {top_k} Candidates:")
+            for line in b:
+                print(line)
+            print("---------------------------\n")
+
+
+
         if next_id == 2:  # Example: Check for an end-of-sequence token
             print("<EOT>", end="", flush=True)
-        # print("\n[INFO] End-of-sequence token generated.")
-        # break
 
     # 4. Final cleanup and return
     print()  # Final newline
