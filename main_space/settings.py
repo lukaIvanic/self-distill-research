@@ -78,14 +78,8 @@ class TrainingConfig:
     class DistillConfig:
 
         def __init__(self):
-            # TODO: this covers a really basic distill
-            #       implementation for attention between only two arbitrarily defined layers.
-            # TODO: should implement distillation type config param
 
-            self.distill_mode = 'hidd_single'  # 'attn_single', 'hidd_single'
-            self.distill_alpha = 10.0
-            self.student_index = 3
-            self.teacher_index = 5
+            self.distill_mode = 'logits_outputs'
 
 
     def __init__(self):
@@ -109,9 +103,10 @@ class TrainingConfig:
         self.scaler = None
         self.initialize_precision()
         self.doesClipGradients = True
-        self.doesDistill = False
+        self.distill_enabled = True
 
         self.hyperParamConfig = self.HyperparameterConfig()
+        self.distillConfig = self.DistillConfig()
 
 
     def initialize_precision(self):
@@ -133,8 +128,12 @@ class CheckpointConfig:
         #       contradict with other wandb logging options,
         #       in the validate_config function
 
-        self.artifact_base_names = ["sub_1M_distill_dummies", "sub_1M_distill_dummies_smaller", "ctx_len_1M_exp", "100M_teacher"]
-        self.artifact_base_name = "sub_1M_distill_dummies_smaller"  # TODO: fix for consistency
+        self.artifact_base_names = ["sub_1M_distill_dummies",
+                                    "distilled_model_dummies",
+                                    "sub_1M_distill_dummies_smaller",
+                                    "ctx_len_1M_exp",
+                                    "100M_teacher"]
+        self.artifact_base_name = "distilled_model_dummies"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")

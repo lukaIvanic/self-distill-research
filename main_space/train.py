@@ -6,7 +6,7 @@ from torch.profiler import record_function
 # --- End of setup ---
 from main_space.train_management import get_global_train_manager
 import main_space.utils.settings_utils as settings_utils
-from main_space.utils.log_utils import print_model_params
+from main_space.utils.log_utils import print_model_params, print_teacher_model_params
 from main_space.utils.checker_utils import validate_config
 
 from tokenizers import Tokenizer
@@ -71,6 +71,7 @@ def main():
     with trainManage.get_profiler_context():
 
         trainManage.setup_model()
+        trainManage.setup_teacher_model()
         trainManage.setup_wandb_watch()
         trainManage.setup_optimizer()
         trainManage.setup_criterion()
@@ -78,6 +79,7 @@ def main():
 
         # TODO fix this logging
         print_model_params(trainManage.model)
+        print_teacher_model_params(trainManage.teacher_model)
 
         trainManage.setup_train_dataloader()
         trainManage.init_train_iterator()
@@ -98,6 +100,8 @@ def main():
             steps = trainingConfig.experimental_steps
         else:
             steps = trainingConfig.train_steps
+
+
 
         for step_num in range(trainManage.current_train_step, steps):
             with record_function("getting_next_batch"):

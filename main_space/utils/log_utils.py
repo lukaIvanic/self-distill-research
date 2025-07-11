@@ -143,6 +143,9 @@ def print_model_params(model):
     # print(f"FIX print_model_params, CURRENTLY MODEL IS BEING PASSED INTO IT, BECAUSE OTHERWISE IT WOULD"
     #       f"BE A CIRCULAR IMPORT.")
 
+def print_teacher_model_params(teacher_model):
+    num_params = sum(p.numel() for p in teacher_model.parameters() if p.requires_grad)
+    print(f"Teacher model instantiated with {num_params:,} trainable parameters.")
 
 def log_validation_step(step_num, curr_avg_ce_loss, curr_avg_periodic_losses, device, profiler_obj, wandb_run_obj):
 
@@ -180,7 +183,7 @@ def step_log(step_num, ce_only_loss, periodic_losses, curr_lr, device, wandb, pr
 
     if (step_num + 1) % (wandbConfig.wandb_log_freq_metrics) == 0:
         print(
-            f"Step [{step_num + 1}/{trainingConfig.train_steps}], Loss: {loss_val:.4f}, LR: {current_actual_lr:.2e}")
+            f"Step [{step_num + 1}/{trainingConfig.train_steps}], Loss: {ce_only_loss:.4f}, LR: {current_actual_lr:.2e}")
 
     if wandbConfig.is_wandb_enabled and wandb_run_obj and (step_num + 1) % wandbConfig.wandb_log_freq_metrics == 0:
         log_data = {
@@ -189,9 +192,10 @@ def step_log(step_num, ce_only_loss, periodic_losses, curr_lr, device, wandb, pr
             "learning_rate": curr_lr
         }
 
-        period_size = 64
-        for i, period_loss in enumerate(periodic_losses):
-            log_data[f"loss_ctx_{i * period_size}_{(i+1)*period_size-1}"] = period_loss.item()
+        if periodic_losses is not None:
+            period_size = 64
+            for i, period_loss in enumerate(periodic_losses):
+                log_data[f"loss_ctx_{i * period_size}_{(i+1)*period_size-1}"] = period_loss.item()
 
         if trainingConfig.scaler:
             log_data["grad_scaler_scale"] = trainingConfig.scaler.get_scale()

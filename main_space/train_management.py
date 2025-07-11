@@ -36,6 +36,7 @@ class TrainManager:
         self.device = None
 
         self.model = None
+        self.teacher_model = None
         self.optimizer = None
         self.criterion = None
 
@@ -183,6 +184,12 @@ class TrainManager:
                 "trainManage.make_train_step was called, but self.model wasn't initialized yet. "
                 "Please call trainManage.setup_model first.")
 
+
+        if self.teacher_model is None:
+            raise BrokenPipeError(
+                "trainManage.make_train_step was called, but self.teacher_model wasn't initialized yet. "
+                "Please call trainManage.setup_teacher_model first.")
+
         if self.criterion is None:
             raise BrokenPipeError(
                 "trainManage.make_train_step was called, but self.criterion wasn't initialized yet. "
@@ -221,6 +228,7 @@ class TrainManager:
         make_train_step(
             step_num=self.current_train_step,
             model=self.model,
+            teacher_model=self.teacher_model,
             criterion=self.criterion,
             optimizer=self.optimizer,
             device=self.device,
@@ -323,6 +331,85 @@ class TrainManager:
 
         print(f"After saving curr step: {self.current_train_step}")
 
+
+    def setup_teacher_model(self):
+        if not self.projectConfig.trainingConfig.distill_enabled:
+            return
+
+        projectName = "self-distill-research"
+        entity = "luka_newbie"
+        alias_tag = "sub_1M_distill_dummies:run_np7l9b3j_step_9999"
+        artifactName = alias_tag.split(':')[0]
+        alias = alias_tag.split(':')[1]
+
+        api = wandb.Api()
+
+        artifact_path = f"{entity}/{projectName}/{artifactName}:{alias}"
+        print(f"[INFO] Loading artifact '{artifact_path}'")
+        artifact = api.artifact(artifact_path, type="model-checkpoint")
+        download_dir = artifact.download()
+        print(f"[INFO] Artifact downloaded to: {download_dir}")
+
+        # 1) Grab the run that produced this artifact:
+        creator = artifact.logged_by()  # a <wandb.apis.public.Run> stub
+        run_ref = f"{creator.entity}/{creator.project}/{creator.id}"
+        print(f"[INFO] Loading run that produced artifact: {run_ref}")
+        run = api.run(run_ref)
+
+        # 2) Extract and print the run.config
+        config = run.config or {}
+        print("[INFO] Loaded run.config:")
+        for k, v in sorted(config.items()):
+            print(f"  - {k}: {v!r}")
+
+        # Read metadata for model hyperparameters
+        metadata = artifact.metadata or {}
+        print("[INFO] Loaded artifact metadata:")
+        for k, v in metadata.items():
+            print(f"  - {k}: {v}")
+
+        # Extract required hyperparameters (with defaults or errors)
+        try:
+            vocab_size = int(config["vocab_size"])
+            d_model = int(config["d_model"])
+            n_heads = int(config["num_heads"])
+            n_layers = int(config["num_layers"])
+            ctx_size = int(config["ctx_len"])
+            p_dropout = float(config["dropout_rate"])
+        except KeyError as e:
+            print(f"[ERROR] Missing hyperparameter in metadata: {e}")
+            return
+
+        # Instantiate model
+        print("[INFO] Instantiating teacher model with loaded hyperparameters...")
+        self.teacher_model = MyTransformerLM(
+            vocab_size=vocab_size,
+            d_model=d_model,
+            n_heads=n_heads,
+            n_layers=n_layers,
+            ctx_size=ctx_size,
+            p_dropout=p_dropout,
+        )
+        self.teacher_model.to(self.device)
+        self.teacher_model.eval()
+        print("[INFO] Model architecture:")
+        print(self.teacher_model)
+
+        # Load checkpoint
+        checkpoint_file = os.path.join(download_dir, "checkpoint.pt")
+        if not os.path.exists(checkpoint_file):
+            print(f"[ERROR] checkpoint.pt not found in {download_dir}")
+            return
+
+        print(f"[INFO] Loading state dict from {checkpoint_file}")
+        checkpoint = torch.load(checkpoint_file, map_location=self.device)
+        result = self.teacher_model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+        print(f"[INFO] Missing keys: {result.missing_keys}")
+        print(f"[INFO] Unexpected keys: {result.unexpected_keys}")
+        print("[INFO] Model weights loaded successfully.")
+
+
+
     def attempt_load_checkpoint_if_exists(self):
 
         checkpointConfig = self.projectConfig.checkpointConfig
@@ -332,7 +419,7 @@ class TrainManager:
 
         if self.wandb_run is None:
             raise BrokenPipeError(
-                "trainManage.load_checkpoint was called, but self.wandb_run wasn't initialized yet. "
+                "trainManage.load<<_checkpoint was called, but self.wandb_run wasn't initialized yet. "
                 "Please call trainManage.setup_wandb_run first.")
 
         if self.device is None:

@@ -8,18 +8,7 @@ from main_space.model import MyTransformerLM
 from tokenizers import Tokenizer
 import torch.nn.functional as F
 
-inputText = """
-user: What is 2 + 2?
-agent: 2 + 2 = 4
-user: What is 5 + 5?
-agent: 5 + 5 = 10
-user: What is 3 + 8?
-agent: 3 + 8 = 11
-user: What is 6 + 2?
-agent: 6 + 2 = 8
-user: What is 3 + 2?
-agent: 
-"""
+inputText = """ = Croatia = """
 
 skip_loading = False
 
@@ -28,7 +17,7 @@ def parse_args():
     projectName = "self-distill-research"
     entity = "luka_newbie"
 
-    alias_tag = "ctx_len_1M_exp:v78"
+    alias_tag = "distilled_model_dummies:run_0hctfkyc_step_9999"
     artifactName = alias_tag.split(':')[0]
     alias = alias_tag.split(':')[1]
 
@@ -57,13 +46,13 @@ def generate_greedy(
         prompt: str,
         device: torch.device,
         ctx_size: int,
-        max_new_tokens: int = 100,
+        max_new_tokens: int = 256,
         print_each: bool = False,
         never_stop: bool = True,  # doesn't stop generation on EOS token
-        temperature: float = 1.0,
+        temperature: float = 0.8,
         repetition_penalty: float = 2.0,
-        top_k: int = 50,
-        top_p: float = 0.8  # Vrijednosti blizu 1.0 su manje restriktivne, a blizu 0 su više.
+        top_k: int = 10,
+        top_p: float = 0.90  # Vrijednosti blizu 1.0 su manje restriktivne, a blizu 0 su više.
 ) -> str:
 
     if not ( 0.1 < temperature < 5.0):
@@ -73,7 +62,7 @@ def generate_greedy(
         raise ValueError("Top P should be between 0.01 and 1.0")
 
 
-    token_ids = tokenizer.encode(prompt).ids
+    token_ids = [2, 3] + tokenizer.encode(prompt).ids # Add [CLS][SEP], which represent eos and bos
     org_tokens_len = len(token_ids)
     generated_ids = token_ids.copy()
 
@@ -141,7 +130,7 @@ def generate_greedy(
     tps = (step + 1) / elapsed
     print(f"\n[INFO] Generation of {step + 1} new tokens took {elapsed:.3f}s ({tps:.2f} tokens/sec)")
 
-    full_text = clean_decoded_text(tokenizer.decode(generated_ids))
+    full_text = clean_decoded_text(tokenizer.decode(generated_ids, skip_special_tokens=False))
     return full_text
 
 
@@ -284,6 +273,11 @@ def main():
 
     print("[RESULT] Full generated text:")
     print(generated)
+
+    print()
+    print("-"*60)
+    print(f"End of script...")
+    print("-"*60)
 
 
 if __name__ == "__main__":
