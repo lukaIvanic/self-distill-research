@@ -185,9 +185,9 @@ class TrainManager:
                 "Please call trainManage.setup_model first.")
 
 
-        if self.teacher_model is None:
+        if self.projectConfig.trainingConfig.distill_enabled and self.teacher_model is None:
             raise BrokenPipeError(
-                "trainManage.make_train_step was called, but self.teacher_model wasn't initialized yet. "
+                "trainManage.make_train_step was called and self.projectConfig.trainingConfig.distill_enabled is True, but self.teacher_model wasn't initialized yet. "
                 "Please call trainManage.setup_teacher_model first.")
 
         if self.criterion is None:

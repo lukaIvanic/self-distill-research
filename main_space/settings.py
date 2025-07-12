@@ -69,9 +69,9 @@ class TrainingConfig:
 
         def __init__(self):
             self.vocab_size = 5000  # Dummy vocab size
-            self.d_model = 256  # Embedding dimension / model dimension
-            self.num_heads = 4  # Number of attention heads
-            self.num_layers = 5  # Number of Transformer blocks
+            self.d_model = 512  # Embedding dimension / model dimension
+            self.num_heads = 8  # Number of attention heads
+            self.num_layers = 32  # Number of Transformer blocks
             self.ctx_len = 512  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.1
 
@@ -83,8 +83,8 @@ class TrainingConfig:
 
 
     def __init__(self):
-        self.warmup_steps = int(1e3)
-        self.train_steps = int(1e4)
+        self.warmup_steps = int(5e3)
+        self.train_steps = int(1e5)
         self.peak_lr = 1e-3
         self.batch_size = 32
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
@@ -128,7 +128,8 @@ class CheckpointConfig:
         #       contradict with other wandb logging options,
         #       in the validate_config function
 
-        self.artifact_base_names = ["sub_1M_distill_dummies",
+        self.artifact_base_names = ["50_mil_classic",
+                                    "sub_1M_distill_dummies",
                                     "distilled_model_dummies",
                                     "sub_1M_distill_dummies_smaller",
                                     "ctx_len_1M_exp",
@@ -138,7 +139,7 @@ class CheckpointConfig:
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")
 
-        self.checkpoint_frequency = 2000
+        self.checkpoint_frequency = 10000
 
         self.attempt_load_checkpoint_if_exists= False
         self.strict_state_dict_loading = True

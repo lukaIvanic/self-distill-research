@@ -79,7 +79,9 @@ def main():
 
         # TODO fix this logging
         print_model_params(trainManage.model)
-        print_teacher_model_params(trainManage.teacher_model)
+
+        if trainingConfig.distill_enabled:
+            print_teacher_model_params(trainManage.teacher_model)
 
         trainManage.setup_train_dataloader()
         trainManage.init_train_iterator()

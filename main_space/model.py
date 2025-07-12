@@ -37,6 +37,10 @@ class Head(nn.Module):
         # TODO: the tril needs to go, either have one and pass it down
         #       or recalculate on every turn.
         self.register_buffer('tril', torch.tril(torch.ones(ctx_size, ctx_size)))
+        # 512*512 = 256000
+
+
+
         self.dropout = nn.Dropout(p_dropout)
 
     def forward(self, x):
