@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-
 import math
 
 
@@ -124,13 +123,13 @@ class PositionalEmbedding(nn.Module):
 #         return out, new_kv_cache_list
 
 class OptimizedMultiHeadAttention(nn.Module):
-    def __init__(self, n_heads, head_size, d_model, p_dropout, ctx_size, tril):
+    def __init__(self, n_heads, head_size, d_model, p_dropout, ctx_size):
         super().__init__()
         self.n_heads = n_heads
         self.d_model = d_model
         self.head_size = head_size
         self.ctx_size = ctx_size
-        self.tril = tril
+
 
         self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)  # 3 * d_model for Q, K, V
         self.output_proj_mha = nn.Linear(d_model, d_model)  # head_size * n_heads is just d_model
@@ -139,21 +138,20 @@ class OptimizedMultiHeadAttention(nn.Module):
         self.resid_dropout = nn.Dropout(p_dropout)
 
 
+        # self.register_buffer('tril', torch.tril(torch.ones(ctx_size, ctx_size)))
+
     def forward(self, x):
-
-
         B, T, C = x.shape
-
         qkv = self.qkv_proj(x)
-
         q, k, v = qkv.view(B, T, 3, self.n_heads, self.head_size).permute(2, 0, 3, 1, 4)
 
-        wei = (q @ k.transpose(-2, -1)) * (self.head_size ** -0.5)
-        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
-        wei = F.softmax(wei, dim=-1)
-        wei = self.attn_dropout(wei)
 
-        out = wei @ v
+        out = F.scaled_dot_product_attention(
+            q, k, v,
+            attn_mask=None,  # Not needed for causal
+            dropout_p=self.attn_dropout.p if self.training else 0.0,
+            is_causal=True
+        )
 
         out = out.transpose(1, 2).contiguous().view(B, T, C)
         out = self.resid_dropout(self.output_proj_mha(out))
@@ -178,7 +176,7 @@ class FeedForward(nn.Module):
 
 
 class TransBlock(nn.Module):
-    def __init__(self, d_model, n_heads, p_dropout, ctx_size, tril):
+    def __init__(self, d_model, n_heads, p_dropout, ctx_size):
         super().__init__()
 
         head_size = d_model // n_heads
@@ -187,8 +185,7 @@ class TransBlock(nn.Module):
                                               head_size=head_size,
                                               d_model=d_model,
                                               p_dropout=p_dropout,
-                                              ctx_size=ctx_size,
-                                              tril=tril)
+                                              ctx_size=ctx_size)
         # print(f"Using regular MHA")
         # self.sa = MultiHeadAttention(n_heads=n_heads,
         #                              head_size=head_size,
@@ -232,8 +229,6 @@ class MyTransformerLM(nn.Module):
     def __init__(self, vocab_size, d_model, n_heads, n_layers, ctx_size, p_dropout):
         super().__init__()
 
-        self.register_buffer('tril', torch.tril(torch.ones(ctx_size, ctx_size)))
-
         self.initial_std = d_model ** -0.5
 
         self.token_embedding = TokenEmbedding(vocab_size, d_model)
@@ -245,7 +240,7 @@ class MyTransformerLM(nn.Module):
                         n_heads=n_heads,
                         p_dropout=p_dropout,
                         ctx_size=ctx_size,
-                        tril=self.tril) for _ in range(n_layers)]
+                        ) for _ in range(n_layers)]
         )
 
         self.lm_head = LMHead(d_model, vocab_size, self.token_embedding.embedding.weight)

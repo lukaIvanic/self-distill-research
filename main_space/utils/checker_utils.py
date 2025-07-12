@@ -71,7 +71,7 @@ def validate_config():
                          "The current profiler setup relies on W&B for trace handling. "
                          "If you want to use the profiler, ENABLE_WANDB must also be True.")
 
-    if wandbConfig.profilerConfig and wandb is not None and not hasattr(wandb.profiler, 'torch_trace_handler'):
+    if wandbConfig.profilerConfig and wandb is not None:
         # This check might be too strict if older wandb versions have different paths
         # but good for ensuring the expected handler exists.
         print("Warning: ENABLE_PROFILER is True, but `wandb.profiler.torch_trace_handler` might not be available. "

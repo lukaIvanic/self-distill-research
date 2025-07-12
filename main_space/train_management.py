@@ -112,7 +112,11 @@ class TrainManager:
                 "trainManage.get_profiler_context was called, but self.wandb_run wasn't initialized yet. "
                 "Please call trainManage.setup_wandb_run first.")
 
-        return get_profiler_context(wandb_run=self.wandb_run, device=self.device)
+
+        self.profiler_or_null_context = get_profiler_context(wandb_run=self.wandb_run, device=self.device)
+        print(f"Properly returning profiler: {self.profiler_or_null_context}")
+        return self.profiler_or_null_context
+
 
     def setup_optimizer(self):
         if self.model is None:
@@ -225,6 +229,10 @@ class TrainManager:
                 "trainManage.make_train_step was called, but self.current_train_step wasn't initialized yet. "
                 "Please call trainManage.init_curr_step_counter first.")
 
+        if self.profiler_or_null_context:
+            profiler: torch.profiler.profile = self.profiler_or_null_context
+            profiler.step()
+
         make_train_step(
             step_num=self.current_train_step,
             model=self.model,
@@ -235,7 +243,6 @@ class TrainManager:
             batch_input_ids=self.input_ids,
             batch_target_ids=self.target_ids,
             wandb_run_obj=self.wandb_run,
-            profiler_obj=self.profiler_or_null_context
         )
 
         self.current_train_step += 1

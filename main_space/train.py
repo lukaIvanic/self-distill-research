@@ -109,26 +109,18 @@ def main():
             with record_function("getting_next_batch"):
                 trainManage.next_batch()
 
-            if (step_num + 1) % 1000 == 0 or step_num == 0:
-                print_input_text(trainManage.input_ids)
+            # if (step_num + 1) % 1000 == 0 or step_num == 0:
+            #     print_input_text(trainManage.input_ids)
 
-            trainManage.make_train_step()
+            with record_function("make_train_step"):
+                trainManage.make_train_step()
 
 
 
-    # TODO: manage logging better
+
+
+
     print(f"\nTraining completed after {trainManage.current_train_step} steps.")
-
-    # TODO figure out validation run
-    # validation_run(model=model,
-    #                val_loader=val_loader,
-    #                criterion=criterion,
-    #                device=device,
-    #                wandb=wandb,
-    #                wandb_run=wandb_run,
-    #                ENABLE_WANDB=ENABLE_WANDB,
-
-    #                PIN_MEMORY_DATALOADER=PIN_MEMORY_DATALOADER,)
 
 
 if __name__ == "__main__":

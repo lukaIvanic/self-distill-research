@@ -56,7 +56,6 @@ def get_profiler_context(wandb_run, device):
         with_flops=profilerConfig.profiler_with_ops,
         with_stack=profilerConfig.profiler_with_stack,
     )
-
     return profiler_context
 
 
@@ -176,7 +175,7 @@ def log_validation_step(step_num, curr_avg_ce_loss, curr_avg_periodic_losses, de
     if profiler_obj:
         profiler_obj.step()
 
-def step_log(step_num, ce_only_loss, periodic_losses, curr_lr, device, wandb, profiler_obj, wandb_run_obj, loss_val, current_actual_lr):
+def step_log(step_num, ce_only_loss, periodic_losses, curr_lr, device, wandb, wandb_run_obj, current_actual_lr):
 
     wandbConfig = get_wandb_config()
     trainingConfig = get_training_config()
@@ -206,6 +205,3 @@ def step_log(step_num, ce_only_loss, periodic_losses, curr_lr, device, wandb, pr
 
         wandb.log(log_data, step=step_num + 1)
 
-    # --- Inform the profiler that a step is complete (if profiler is active) ---
-    if profiler_obj:
-        profiler_obj.step()

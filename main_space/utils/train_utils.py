@@ -192,8 +192,7 @@ def make_train_step(step_num,
                     device,
                     batch_input_ids,
                     batch_target_ids,  # Directly supplied
-                    wandb_run_obj,
-                    profiler_obj):
+                    wandb_run_obj):
 
     trainingConfig = get_training_config()
 
@@ -246,7 +245,6 @@ def make_train_step(step_num,
         with record_function("optimizer_step"):
             optimizer.step()
 
-    loss_val = loss.item()
 
     # TODO rework step_log
     step_log(step_num=step_num,
@@ -255,9 +253,7 @@ def make_train_step(step_num,
              curr_lr=current_actual_lr,
              wandb=wandb,
              device=device,
-             profiler_obj=profiler_obj,
              wandb_run_obj=wandb_run_obj,
-             loss_val=loss_val,
              current_actual_lr=current_actual_lr)
 
 

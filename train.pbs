@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -N ctx_size_study
-#PBS -l select=1:ncpus=8:mem=40GB:ngpus=1
+#PBS -l select=1:ncpus=16:mem=40GB:ngpus=1
 #PBS -l walltime=23:45:00
 #PBS -q gpu
 #PBS -o output.log

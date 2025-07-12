@@ -11,13 +11,13 @@ class WandbConfig:
 
     class ProfilerConfig:
         def __init__(self):
-            self.profiler_wait_steps = 200
-            self.profiler_warmup_steps = 5
-            self.profiler_active_steps = 5
-            self.profiler_repeat_cycles = 5  # Total active steps = profiler_active_steps * profiler_repeat_cycles
+            self.profiler_wait_steps = 100
+            self.profiler_warmup_steps = 10
+            self.profiler_active_steps = 2
+            self.profiler_repeat_cycles = 1  # Total active steps = profiler_active_steps * profiler_repeat_cycles
             self.profiler_record_shapes = True
             self.profiler_profile_memory = True
-            self.profiler_with_ops = True
+            self.profiler_with_ops = False
             self.profiler_with_stack = False  # Set to False by default, as it can be costly
 
     def __init__(self):
@@ -45,8 +45,8 @@ class DatasetConfig:
         self.cache_dir = os.path.join(os.getcwd(), "/dataset_creation/temp_files/cache_hf_datasets")
         self.dataset_name = "wikitext"
         self.dataset_config = "wikitext-103-v1"
-        self.num_workers_dataloader = 0
-        self.pin_memory_dataloader = True  # TODO: investigate this
+        self.num_workers_dataloader = 8
+        self.pin_memory_dataloader = True
         self.vocab_size_from_tokenizer = True
 
 
@@ -95,7 +95,7 @@ class TrainingConfig:
         self.seed = 42
 
 
-        self.experimental_steps = int(1e3)
+        self.experimental_steps = int(150)
         self.experimental_stop = False
 
 
@@ -139,7 +139,7 @@ class CheckpointConfig:
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")
 
-        self.checkpoint_frequency = 10000
+        self.checkpoint_frequency = 3000
 
         self.attempt_load_checkpoint_if_exists= False
         self.strict_state_dict_loading = True
