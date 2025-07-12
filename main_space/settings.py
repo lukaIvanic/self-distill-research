@@ -68,11 +68,12 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
+            self.run_name = "150M_classic"
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 512  # Embedding dimension / model dimension
-            self.num_heads = 8  # Number of attention heads
-            self.num_layers = 32  # Number of Transformer blocks
-            self.ctx_len = 512  # Max sequence length for dummy data and positional embeddings
+            self.num_heads = 16  # Number of attention heads
+            self.num_layers = 48  # Number of Transformer blocks
+            self.ctx_len = 1024  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.1
 
     class DistillConfig:
@@ -83,12 +84,12 @@ class TrainingConfig:
 
 
     def __init__(self):
-        self.warmup_steps = int(5e3)
-        self.train_steps = int(1e5)
-        self.peak_lr = 1e-3
+        self.warmup_steps = int(2000)
+        self.train_steps = int(12000)
+        self.peak_lr = 3e-4
         self.batch_size = 32
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
-        self.min_lr = 1e-4
+        self.min_lr = 3e-5
         self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
         # TODO: add elsewhere check for gradient norm setting
         self.gradient_clip_norm = 1.0
@@ -133,8 +134,18 @@ class CheckpointConfig:
                                     "distilled_model_dummies",
                                     "sub_1M_distill_dummies_smaller",
                                     "ctx_len_1M_exp",
-                                    "100M_teacher"]
-        self.artifact_base_name = "distilled_model_dummies"  # TODO: fix for consistency
+                                    "100M_teacher",
+                                    "1M_classic",
+                                    "2M_classic",
+                                    "5M_classic",
+                                    "10M_classic",
+                                    "30M_classic",
+                                    "70M_classic",
+                                    "150M_classic",
+                                    "5M_classic_GPU",
+                                    "500M_classic",
+                                    "VECI_M_classic_GPU"]
+        self.artifact_base_name = "150M_classic"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")

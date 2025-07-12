@@ -93,20 +93,13 @@ def initialize_wandb():
         "num_iterations": trainingConfig.train_steps,
         "batch_size": trainingConfig.batch_size,
         "learning_rate": trainingConfig.peak_lr,
-        "seed": trainingConfig.seed,
-        "dataset_name": datasetConfig.dataset_name,
-        "dataset_config": datasetConfig.dataset_config,
-        "enable_profiler": wandbConfig.is_profiler_enabled,
-        "wandb_watch_level": wandbConfig.wandb_watch_level,
-        "log_freq_metrics": wandbConfig.wandb_log_freq_metrics,
-        "log_freq_model_watch": wandbConfig.wandb_log_freq_model_watch,
         "scheduler_type": trainingConfig.scheduler_type,
         "warmup_steps": trainingConfig.warmup_steps,
         "min_lr_cosine": trainingConfig.min_lr,
         "precision": trainingConfig.training_precision,
         "effective_precision": str(trainingConfig.precision_dtype)
-
     }
+
     if wandbConfig.is_profiler_enabled:
 
         profilerConfig = wandbConfig.profilerConfig
@@ -124,7 +117,8 @@ def initialize_wandb():
         wandb_run = wandb.init(
             project=wandbConfig.wandb_project_name,
             entity=wandbConfig.wandb_entity,
-            config=config_dict
+            config=config_dict,
+            name=hyperParamConfig.run_name,
         )
         if wandb_run:
             print(f"W&B Initialized. Run URL: {wandb_run.url}")
