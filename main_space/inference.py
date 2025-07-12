@@ -65,7 +65,7 @@ def generate_greedy(
         top_k: int = 50,
         top_p: float = 0.8  # Vrijednosti blizu 1.0 su manje restriktivne, a blizu 0 su više.
 ) -> str:
-    disable_cache = False
+    disable_cache = True
 
     """
     Generates text using a KV cache with a nested structure and a sliding window.
@@ -87,50 +87,15 @@ def generate_greedy(
     for step in range(max_new_tokens):
 
         if not disable_cache:
-            # --- A. SLIDING WINDOW LOGIC FOR THE KV CACHE ---
-            if kv_cache is not None:
-                # First, determine the current length of the cache.
-                # We can reliably check the first key tensor of the first head of the first layer.
-                # kv_cache -> [layer0_cache, layer1_cache, ...]
-                # layer0_cache -> [head0_cache, head1_cache, ...]
-                # head0_cache -> (k_tensor, v_tensor)
-                # k_tensor -> shape [B, seq_len, head_size]
-                first_key_tensor = kv_cache[0][0][0]
-                cached_seq_len = first_key_tensor.size(1)
-
-                # If the cache is at or over the context limit, we must slide it.
-                if cached_seq_len >= ctx_size:
-                    # To "slide", we rebuild the entire cache structure, but with trimmed tensors.
-                    new_kv_cache_after_sliding = []
-                    for layer_cache in kv_cache:  # This is a list of head_caches
-                        new_layer_cache = []
-                        for head_k, head_v in layer_cache:  # This is a (k, v) tensor tuple
-                            # Trim the oldest token (at index 0) from the sequence dimension (dim 1)
-                            k_trimmed = head_k[:, 1:, :]
-                            v_trimmed = head_v[:, 1:, :]
-                            new_layer_cache.append((k_trimmed, v_trimmed))
-                        new_kv_cache_after_sliding.append(new_layer_cache)
-                    kv_cache = new_kv_cache_after_sliding
-
-            # --- B. MODEL FORWARD PASS ---
-            # On the first step, input_ids is the prompt and kv_cache is None.
-            # On subsequent steps, input_ids is just the newest token, and we pass the (potentially slid) cache.
-            logits, kv_cache = model.inference_step(input_ids, kv_cache)
-            if disable_cache:
-                kv_cache = None
-
+            # TODO: implement working KV cache
+            pass
         else:
             input_for_model = torch.tensor([generated_ids[-ctx_size:]], device=device)
             logits = model(input_for_model)  # Calling the regular forward pass
 
         # --- C. SAMPLE NEXT TOKEN ---
-
         # Change start
         next_logits = logits[0, -1, :]
-
-        # ### NOVI KOD ZA SMANJENJE PONAVLJANJA - START ###
-        # Primijeni kaznu za ponavljanje (repetition penalty) na logite.
-        # Ovo smanjuje vjerojatnost tokena koji su se već pojavili u generiranom tekstu.
 
         if step > 0:
             for token_id in set(generated_ids):
@@ -312,8 +277,8 @@ def main():
         model = MyTransformerLM(
             vocab_size=5000,
             d_model=512,
-            n_heads=4,
-            n_layers=2,
+            n_heads=1,
+            n_layers=1,
             ctx_size=ctx_size,
             p_dropout=0.1,
         )
