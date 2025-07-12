@@ -70,32 +70,26 @@ class TrainingConfig:
         def __init__(self):
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 256  # Embedding dimension / model dimension
-            self.num_heads = 8  # Number of attention heads
-            self.num_layers = 6  # Number of Transformer blocks
-            self.ctx_len = 2048  # Max sequence length for dummy data and positional embeddings
-            self.dropout_rate = 0.0
+            self.num_heads = 4  # Number of attention heads
+            self.num_layers = 5  # Number of Transformer blocks
+            self.ctx_len = 512  # Max sequence length for dummy data and positional embeddings
+            self.dropout_rate = 0.1
 
     class DistillConfig:
 
         def __init__(self):
-            # TODO: this covers a really basic distill
-            #       implementation for attention between only two arbitrarily defined layers.
-            # TODO: should implement distillation type config param
 
-            self.distill_mode = 'hidd_single'  # 'attn_single', 'hidd_single'
-            self.distill_alpha = 10.0
-            self.student_index = 3
-            self.teacher_index = 5
+            self.distill_mode = 'logits_outputs'
 
 
     def __init__(self):
         self.warmup_steps = int(1e3)
-        self.train_steps = int(1e5)
+        self.train_steps = int(1e4)
         self.peak_lr = 1e-3
-        self.batch_size = 4
+        self.batch_size = 32
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
         self.min_lr = 1e-4
-        self.training_precision = "float32"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
+        self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
         # TODO: add elsewhere check for gradient norm setting
         self.gradient_clip_norm = 1.0
         self.seed = 42
@@ -109,9 +103,10 @@ class TrainingConfig:
         self.scaler = None
         self.initialize_precision()
         self.doesClipGradients = True
-        self.doesDistill = False
+        self.distill_enabled = False
 
         self.hyperParamConfig = self.HyperparameterConfig()
+        self.distillConfig = self.DistillConfig()
 
 
     def initialize_precision(self):
@@ -133,13 +128,17 @@ class CheckpointConfig:
         #       contradict with other wandb logging options,
         #       in the validate_config function
 
-        self.artifact_base_names = ["ctx_len_1M_exp", "100M_teacher"]
-        self.artifact_base_name = "ctx_len_1M_exp"  # TODO: fix for consistency
+        self.artifact_base_names = ["sub_1M_distill_dummies",
+                                    "distilled_model_dummies",
+                                    "sub_1M_distill_dummies_smaller",
+                                    "ctx_len_1M_exp",
+                                    "100M_teacher"]
+        self.artifact_base_name = "distilled_model_dummies"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")
 
-        self.checkpoint_frequency = 5000
+        self.checkpoint_frequency = 2000
 
         self.attempt_load_checkpoint_if_exists= False
         self.strict_state_dict_loading = True

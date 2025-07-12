@@ -1,6 +1,8 @@
 import torch
 from torch.amp import autocast
 from torch.nn import functional as F
+from torch import nn
+
 from torch.profiler import record_function
 
 import wandb
@@ -37,6 +39,50 @@ def get_loss_classic(model, criterion, batch_input_ids, batch_target_ids):
         periodic_losses = avg_loss_per_position.view(-1, period).mean(dim=1)
 
     return overall_loss, periodic_losses
+
+
+def get_loss_soft(step_num, model, teacher_model, criterion, batch_input_ids, batch_target_ids):
+    with record_function("forward_pass_teacher"):
+        with torch.no_grad(): # TODO: does this actually do anything?
+            teacher_logits = teacher_model(batch_input_ids)
+
+    with record_function("forward_pass_student"):
+        student_logits = model(batch_input_ids)
+
+    with record_function("loss_calculation_hard_labels"):
+        L_hard = criterion(student_logits.view(-1, student_logits.size(-1)), batch_target_ids.view(-1)).mean()
+
+        if step_num % 100 == 0 or step_num == 0:
+            l_hard_item = L_hard.item()
+            print(f"hard_loss_item: {l_hard_item}")
+
+
+    with record_function("loss_calculation_soft_labels"):
+        temperature = 2.0
+
+        distillation_loss_fn = nn.KLDivLoss(reduction='none')
+
+        student_logits_flat = student_logits.view(-1, student_logits.size(-1))
+        teacher_logits_flat = teacher_logits.view(-1, teacher_logits.size(-1))
+
+        teacher_probs = F.softmax(teacher_logits_flat / temperature, dim=-1)
+        student_log_probs = F.log_softmax(student_logits_flat / temperature, dim=-1)
+
+        L_soft = distillation_loss_fn(
+            input=student_log_probs,
+            target=teacher_probs
+        ).sum(dim=1).mean()
+
+        L_soft = L_soft * (temperature * temperature) # compensating for 1/T^2 bias
+
+        if step_num % 100 == 0 or step_num == 0:
+            l_soft_item = L_soft.item()
+            print(f"soft_loss_item: {l_soft_item}")
+
+    alpha = 0.5
+    total_loss = alpha * L_hard + (1 - alpha) * L_soft
+
+    return total_loss, L_hard
 
 
 def get_loss_hidd_distill(step_num, model, criterion, batch_input_ids, batch_target_ids):
@@ -140,6 +186,7 @@ def clip_gradients(model, optimizer):
 
 def make_train_step(step_num,
                     model,
+                    teacher_model,
                     criterion,
                     optimizer,
                     device,
@@ -147,27 +194,27 @@ def make_train_step(step_num,
                     batch_target_ids,  # Directly supplied
                     wandb_run_obj,
                     profiler_obj):
+
     trainingConfig = get_training_config()
 
-    current_actual_lr = calculate_lr(
-        step_num=step_num,
-    )
-
+    current_actual_lr = calculate_lr(step_num=step_num)
     set_step_lr(current_actual_lr, optimizer)
 
     model.train()
 
+    periodic_losses = None
+
     with autocast(device_type=device.type, enabled=usesAmpOrNot(trainingConfig.training_precision),
                   dtype=trainingConfig.precision_dtype):
 
-        if trainingConfig.doesDistill:
+        if trainingConfig.distill_enabled:
 
-            if trainingConfig.distillConfig.distill_mode == 'attn_single':
-                loss, ce_only_loss = get_loss_attn_distill(step_num, model, criterion, batch_input_ids,
-                                                           batch_target_ids)
+            if trainingConfig.distillConfig.distill_mode == 'logits_outputs':
+                loss, ce_only_loss = get_loss_soft(step_num, model, teacher_model, criterion, batch_input_ids, batch_target_ids)
+
             else:
-                loss, ce_only_loss = get_loss_hidd_distill(step_num, model, criterion, batch_input_ids,
-                                                           batch_target_ids)
+                raise BrokenPipeError(f"distill_mode should be 'logits_output', but was {trainingConfig.distillConfig.distill_mode}.")
+
 
 
         else:

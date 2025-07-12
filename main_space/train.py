@@ -6,7 +6,7 @@ from torch.profiler import record_function
 # --- End of setup ---
 from main_space.train_management import get_global_train_manager
 import main_space.utils.settings_utils as settings_utils
-from main_space.utils.log_utils import print_model_params
+from main_space.utils.log_utils import print_model_params, print_teacher_model_params
 from main_space.utils.checker_utils import validate_config
 
 from tokenizers import Tokenizer
@@ -30,26 +30,26 @@ def print_input_text(input_tensor: torch.Tensor):
         print(f"Input is not a PyTorch tensor. It is of type: {type(input_tensor)}")
         return
 
-    print("--- General Properties ---")
-    print(f"Type: {type(input_tensor)}")
-    print(f"Data Type (dtype): {input_tensor.dtype}")
-    print(f"Shape (size): {input_tensor.shape}")
-    print(f"Number of elements (numel): {input_tensor.numel()}")
-    print(f"Device: {input_tensor.device}")
-
-    print("\n--- Memory and Layout ---")
-    print(f"Memory Layout: {input_tensor.layout}")
-    if input_tensor.is_contiguous():
-        print("Is Contiguous: True")
-    else:
-        print("Is Contiguous: False")
-        print(f"Memory format for non-contiguous tensor might be, for example, {torch.channels_last}")
-
-    # Storage provides a view into the underlying 1D data array.
-    if input_tensor.storage() is not None:
-        print(f"Underlying storage type: {input_tensor.storage().type()}")
-        print(f"Storage size: {len(input_tensor.storage())}")
-        print(f"Storage device: {input_tensor.storage().device}")
+    # print("--- General Properties ---")
+    # print(f"Type: {type(input_tensor)}")
+    # print(f"Data Type (dtype): {input_tensor.dtype}")
+    # print(f"Shape (size): {input_tensor.shape}")
+    # print(f"Number of elements (numel): {input_tensor.numel()}")
+    # print(f"Device: {input_tensor.device}")
+    #
+    # print("\n--- Memory and Layout ---")
+    # print(f"Memory Layout: {input_tensor.layout}")
+    # if input_tensor.is_contiguous():
+    #     print("Is Contiguous: True")
+    # else:
+    #     print("Is Contiguous: False")
+    #     print(f"Memory format for non-contiguous tensor might be, for example, {torch.channels_last}")
+    #
+    # # Storage provides a view into the underlying 1D data array.
+    # if input_tensor.storage() is not None:
+    #     print(f"Underlying storage type: {input_tensor.storage().type()}")
+    #     print(f"Storage size: {len(input_tensor.storage())}")
+    #     print(f"Storage device: {input_tensor.storage().device}")
 
 
     input_text = tokenizer.decode(list(input_tensor[0]), skip_special_tokens=False)
@@ -71,6 +71,7 @@ def main():
     with trainManage.get_profiler_context():
 
         trainManage.setup_model()
+        trainManage.setup_teacher_model()
         trainManage.setup_wandb_watch()
         trainManage.setup_optimizer()
         trainManage.setup_criterion()
@@ -78,6 +79,7 @@ def main():
 
         # TODO fix this logging
         print_model_params(trainManage.model)
+        print_teacher_model_params(trainManage.teacher_model)
 
         trainManage.setup_train_dataloader()
         trainManage.init_train_iterator()
@@ -99,11 +101,14 @@ def main():
         else:
             steps = trainingConfig.train_steps
 
+
+
         for step_num in range(trainManage.current_train_step, steps):
             with record_function("getting_next_batch"):
                 trainManage.next_batch()
 
-            #print_input_text(trainManage.input_ids)
+            if (step_num + 1) % 1000 == 0 or step_num == 0:
+                print_input_text(trainManage.input_ids)
 
             trainManage.make_train_step()
 

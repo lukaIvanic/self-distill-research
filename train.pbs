@@ -1,0 +1,26 @@
+#!/bin/bash
+#PBS -N ctx_size_study
+#PBS -l select=1:ncpus=8:mem=40GB:ngpus=1
+#PBS -l walltime=23:45:00
+#PBS -q gpu
+#PBS -o output.log
+#PBS -e error.log
+
+cd $PBS_O_WORKDIR
+
+module purge
+module load libs/cuda/12.6
+source /lustre/home/livanic/projects/self-distill-research/self-distill-venv/bin/activate
+
+export http_proxy="http://10.150.1.1:3128"
+export https_proxy="http://10.150.1.1:3128"
+
+#python -u -m dataset_creation.data_utils.1_download_wiki_103_raw
+#python -u -m dataset_creation.data_utils.2_generate_tokenizer
+#python -u -m dataset_creation.data_utils.3_inspect_tokenizer_detailed
+#python -u -m dataset_creation.data_utils.4_tokenizer_to_huggingface_format
+
+export WANDB_API_KEY="0193bab60c159ba0ca5a437588d5b68e9167d863"
+echo "My job has been assigned physical GPU(s): $CUDA_VISIBLE_DEVICES"
+python -u -m main_space.train
+
