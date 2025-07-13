@@ -75,7 +75,9 @@ class TrainManager:
             n_heads=hyperParamConfig.num_heads,
             n_layers=hyperParamConfig.num_layers,
             ctx_size=hyperParamConfig.ctx_len,
-            p_dropout=hyperParamConfig.dropout_rate
+            p_dropout=hyperParamConfig.dropout_rate,
+            # needs_adapters=True,
+            # teacher_d_model=512
         ).to(self.device)
 
         self.model.eval()
@@ -345,7 +347,7 @@ class TrainManager:
 
         projectName = "self-distill-research"
         entity = "luka_newbie"
-        alias_tag = "sub_1M_distill_dummies:run_np7l9b3j_step_9999"
+        alias_tag = "10M_classic:run_65j4nam1_step_11999"
         artifactName = alias_tag.split(':')[0]
         alias = alias_tag.split(':')[1]
 

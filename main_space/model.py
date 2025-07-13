@@ -130,13 +130,11 @@ class OptimizedMultiHeadAttention(nn.Module):
         self.head_size = head_size
         self.ctx_size = ctx_size
 
-
         self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)  # 3 * d_model for Q, K, V
         self.output_proj_mha = nn.Linear(d_model, d_model)  # head_size * n_heads is just d_model
 
         self.attn_dropout = nn.Dropout(p_dropout)
         self.resid_dropout = nn.Dropout(p_dropout)
-
 
         # self.register_buffer('tril', torch.tril(torch.ones(ctx_size, ctx_size)))
 
@@ -144,7 +142,6 @@ class OptimizedMultiHeadAttention(nn.Module):
         B, T, C = x.shape
         qkv = self.qkv_proj(x)
         q, k, v = qkv.view(B, T, 3, self.n_heads, self.head_size).permute(2, 0, 3, 1, 4)
-
 
         out = F.scaled_dot_product_attention(
             q, k, v,
@@ -205,7 +202,6 @@ class TransBlock(nn.Module):
         x = x + self.ffwd(self.ln2(x))
         return x, None
 
-
     def inference(self, x, kv_cache):
         mha_output, new_kv_cache = self.sa.inference(self.ln1(x), kv_cache)
         x = x + mha_output
@@ -226,7 +222,8 @@ class LMHead(nn.Module):
 
 
 class MyTransformerLM(nn.Module):
-    def __init__(self, vocab_size, d_model, n_heads, n_layers, ctx_size, p_dropout):
+    def __init__(self, vocab_size, d_model, n_heads, n_layers, ctx_size, p_dropout, needs_adapters=False,
+                 teacher_d_model=None):
         super().__init__()
 
         self.initial_std = d_model ** -0.5
@@ -245,11 +242,12 @@ class MyTransformerLM(nn.Module):
 
         self.lm_head = LMHead(d_model, vocab_size, self.token_embedding.embedding.weight)
 
+        self.adapters = None
+        if needs_adapters:
+            self.adapters = nn.ModuleList([nn.Linear(d_model, teacher_d_model) for _ in range(n_layers)])
+
         self.apply(self._init_default_weights)
         self._apply_scaled_residual_initialization(n_layers)
-
-
-
 
     def _init_default_weights(self, module):
         if isinstance(module, nn.Linear):
@@ -315,9 +313,15 @@ class MyTransformerLM(nn.Module):
 
         hidd_states_per_block = []
 
-        for i, block in enumerate(self.transformer_blocks):
-            x, _ = block(x)
-            hidd_states_per_block.append(x)
+        if self.adapters is None:
+            for i, block in enumerate(self.transformer_blocks):
+                x, _ = block(x)
+                hidd_states_per_block.append(x)
+        else:
+            for i, block in enumerate(self.transformer_blocks):
+                x, _ = block(x)
+                projected_x = self.adapters[i](x)
+                hidd_states_per_block.append(projected_x)
 
         return self.forward_lm_head_layer(x), hidd_states_per_block
 
@@ -329,7 +333,6 @@ class MyTransformerLM(nn.Module):
             x, _ = block(x)
 
         return self.forward_lm_head_layer(x)
-
 
     def inference_step(self, input_ids, kv_caches=None):
         x = self.forward_embd_layer(input_ids)
@@ -346,8 +349,8 @@ class MyTransformerLM(nn.Module):
         return logits, new_kv_caches
 
 
-
 import os
+
 if __name__ == '__main__':
     # Define model parameters
     vocab_size = 5000
@@ -379,9 +382,9 @@ if __name__ == '__main__':
             total_tril_memory += tril_memory
             print(f"Buffer '{name}':")
             print(f"  - Shape: {buffer.shape}")
-            print(f"  - Memory: {tril_memory / (1024**2):.4f} MB")
+            print(f"  - Memory: {tril_memory / (1024 ** 2):.4f} MB")
 
-    print(f"\nTotal memory occupied by 'tril' buffers: {total_tril_memory / (1024**2):.4f} MB")
+    print(f"\nTotal memory occupied by 'tril' buffers: {total_tril_memory / (1024 ** 2):.4f} MB")
 
     # --- Checkpoint size on disk analysis ---
     checkpoint_path = "temp_checkpoint.pth"
@@ -392,7 +395,7 @@ if __name__ == '__main__':
 
     # Get the size of the saved checkpoint file
     checkpoint_size_bytes = os.path.getsize(checkpoint_path)
-    checkpoint_size_mb = checkpoint_size_bytes / (1024**2)
+    checkpoint_size_mb = checkpoint_size_bytes / (1024 ** 2)
 
     print("\n--- Analyzing checkpoint size on disk ---")
     print(f"Checkpoint (model + optimizer state) saved to '{checkpoint_path}'")
@@ -407,11 +410,14 @@ if __name__ == '__main__':
         tril_percentage = (total_tril_memory / checkpoint_size_bytes) * 100
         print(f"The 'tril' buffers make up approximately {tril_percentage:.2f}% of the total checkpoint size.")
         print("\nBy saving the optimizer state, the total file size has increased significantly.")
-        print("This is because optimizers like Adam store additional information (like momentum and variance estimates) for each model parameter, effectively doubling the storage required for parameters.")
+        print(
+            "This is because optimizers like Adam store additional information (like momentum and variance estimates) for each model parameter, effectively doubling the storage required for parameters.")
         print("\nConclusion:")
         print(" - For deploying a model for INFERENCE: Save only `model.state_dict()` to keep the file small.")
-        print(" - For saving a checkpoint to RESUME TRAINING: You MUST save the `optimizer.state_dict()` as well, despite the larger file size.")
-        print("\nYour suspicion about 'tril' buffers is still correct; they contribute to the model's state size. However, the optimizer state is often an even larger contributor to the overall checkpoint size.")
+        print(
+            " - For saving a checkpoint to RESUME TRAINING: You MUST save the `optimizer.state_dict()` as well, despite the larger file size.")
+        print(
+            "\nYour suspicion about 'tril' buffers is still correct; they contribute to the model's state size. However, the optimizer state is often an even larger contributor to the overall checkpoint size.")
 
     else:
         print("No 'tril' buffers were found in the model. If you were expecting them,")

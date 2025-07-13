@@ -169,21 +169,27 @@ def log_validation_step(step_num, curr_avg_ce_loss, curr_avg_periodic_losses, de
     if profiler_obj:
         profiler_obj.step()
 
-def step_log(step_num, ce_only_loss, periodic_losses, curr_lr, device, wandb, wandb_run_obj, current_actual_lr):
+def step_log(step_num, ce_only_loss, soft_loss, loss_hidd_total, periodic_losses, curr_lr, device, wandb, wandb_run_obj, current_actual_lr):
 
     wandbConfig = get_wandb_config()
     trainingConfig = get_training_config()
 
     if (step_num + 1) % (wandbConfig.wandb_log_freq_metrics) == 0:
         print(
-            f"Step [{step_num + 1}/{trainingConfig.train_steps}], Loss: {ce_only_loss:.4f}, LR: {current_actual_lr:.2e}")
+            f"Step [{step_num + 1}/{trainingConfig.train_steps}], Hard loss: {ce_only_loss:.4f} LR: {current_actual_lr:.2e}")
 
     if wandbConfig.is_wandb_enabled and wandb_run_obj and (step_num + 1) % wandbConfig.wandb_log_freq_metrics == 0:
         log_data = {
-            "train_loss": ce_only_loss.item(),
+            "train_loss": ce_only_loss,
             "iteration": step_num + 1,
             "learning_rate": curr_lr
         }
+
+        if soft_loss:
+            log_data["soft_loss"] = soft_loss
+
+        if loss_hidd_total:
+            log_data["loss_hidd_total"] = loss_hidd_total
 
         if periodic_losses is not None:
             period_size = 64

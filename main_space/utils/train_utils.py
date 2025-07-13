@@ -52,7 +52,7 @@ def get_loss_soft(step_num, model, teacher_model, criterion, batch_input_ids, ba
     with record_function("loss_calculation_hard_labels"):
         L_hard = criterion(student_logits.view(-1, student_logits.size(-1)), batch_target_ids.view(-1)).mean()
 
-        if step_num % 100 == 0 or step_num == 0:
+        if step_num % 400 == 0 or step_num == 0:
             l_hard_item = L_hard.item()
             print(f"hard_loss_item: {l_hard_item}")
 
@@ -75,48 +75,85 @@ def get_loss_soft(step_num, model, teacher_model, criterion, batch_input_ids, ba
 
         L_soft = L_soft * (temperature * temperature) # compensating for 1/T^2 bias
 
-        if step_num % 100 == 0 or step_num == 0:
+        if step_num % 400 == 0 or step_num == 0:
             l_soft_item = L_soft.item()
             print(f"soft_loss_item: {l_soft_item}")
 
+
+
+    ratio = L_hard.item() / L_soft.item()
+
+    L_soft *= ratio
+
     alpha = 0.5
-    total_loss = alpha * L_hard + (1 - alpha) * L_soft
-
-    return total_loss, L_hard
+    L = alpha * L_hard + (1 - alpha) * L_soft
 
 
-def get_loss_hidd_distill(step_num, model, criterion, batch_input_ids, batch_target_ids):
-    distillConfig = get_distill_config()
 
-    with record_function("forward_pass_distill"):
-        logits, hidd_outs_per_block = model.forward_with_out_hidd_for_distill(batch_input_ids)
+    return L, L_hard, L_soft
 
-    with record_function("loss_calculation_distill"):
-        ce_loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1)).mean()
 
-        ce_item = ce_loss.item()
-        print(f"ce_item: {ce_item}")
+def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input_ids, batch_target_ids):
 
-        teacher_hidd_output = hidd_outs_per_block[distillConfig.teacher_index]
-        student_hidd_output = hidd_outs_per_block[distillConfig.student_index]
+    with record_function("forward_pass_teacher"):
+        with torch.no_grad():
+            _, hidd_states_teacher = teacher_model.forward_with_out_hidd_for_distill(batch_input_ids)
 
-        if teacher_hidd_output.shape != student_hidd_output.shape:
-            raise ValueError(f"Teacher ({teacher_hidd_output.shape}) and student ({student_hidd_output.shape}) "
-                             "hidden states must have the same shape for MSE distillation.")
+    with record_function("forward_pass_student"):
+        student_logits, hidd_states_student = model.forward_with_out_hidd_for_distill(batch_input_ids)
 
-        mse_loss = F.mse_loss(
-            input=student_hidd_output,
-            target=teacher_hidd_output,
-            reduction='mean'
-        )
+    with record_function("loss_calculation_hard_labels"):
+        L_hard = criterion(student_logits.view(-1, student_logits.size(-1)), batch_target_ids.view(-1)).mean()
 
-        mse_item = mse_loss.item()
-        print(f"mse_item: {mse_item}")
+        if step_num % 100 == 0 or step_num == 0:
+            l_hard_item = L_hard.item()
+            print(f"hard_loss_item: {l_hard_item}")
 
-        # step_distill_alpha = calculate_distill_alpha(config, step_num)
-        total_loss = ce_loss + 1.0 * mse_loss
 
-    return total_loss, ce_loss
+
+    with record_function("loss_calculation_hidd_distill"):
+
+        L_hidd_total = 0.0
+
+        teacher_len = len(hidd_states_teacher)
+        student_len = len(hidd_states_student)
+
+        curr_indx = teacher_len -1
+        indexes = [curr_indx]
+        steps = (teacher_len) // (student_len-1)
+
+        for i in range(curr_indx-1, -1, -steps):
+            indexes.insert(0, i)
+
+
+        for i in range(len(hidd_states_student)):
+            teacher_state = hidd_states_teacher[indexes[i]]
+            student_state = hidd_states_student[i]
+
+            if teacher_state.shape != student_state.shape:
+                raise ValueError(f"Teacher ({teacher_state.shape}) and student ({student_state.shape}) "
+                                 "hidden states must have the same shape for MSE distillation.")
+
+            L_hidd = F.mse_loss(
+                input=student_state,
+                target=teacher_state,
+                reduction='mean'
+            )
+
+            if step_num % 100 == 0 or step_num == 0:
+                l_hidd_item = L_hidd.item()
+                print(f"l_hidd_{i}_item: {l_hidd_item}")
+
+            L_hidd_total += L_hidd
+
+
+    ratio = L_hard.item() / L_hidd_total.item()
+
+    L_hidd_total *= ratio
+    alpha = 0.5
+    L = alpha * L_hard + (1 - alpha) * L_hidd_total
+
+    return L, L_hard, L_hidd_total
 
 
 def get_loss_attn_distill(step_num, model, criterion, batch_input_ids, batch_target_ids):
@@ -182,7 +219,11 @@ def clip_gradients(model, optimizer):
             norm_type=2.0,
             error_if_nonfinite=True
         )
-
+logging_loss_accumulator = {
+    'ce_only_loss': 0.0,
+    'loss_soft': 0.0,
+    'loss_hidd_total': 0.0,
+}
 
 def make_train_step(step_num,
                     model,
@@ -191,17 +232,26 @@ def make_train_step(step_num,
                     optimizer,
                     device,
                     batch_input_ids,
-                    batch_target_ids,  # Directly supplied
+                    batch_target_ids,
                     wandb_run_obj):
+    global logging_loss_accumulator
 
     trainingConfig = get_training_config()
 
-    current_actual_lr = calculate_lr(step_num=step_num)
+    accumulation_steps = 1
+    actual_step_num = step_num // accumulation_steps
+
+    current_actual_lr = calculate_lr(step_num=actual_step_num)
     set_step_lr(current_actual_lr, optimizer)
 
     model.train()
 
     periodic_losses = None
+    loss_soft = None
+    loss_hidd_total = None
+
+
+
 
     with autocast(device_type=device.type, enabled=usesAmpOrNot(trainingConfig.training_precision),
                   dtype=trainingConfig.precision_dtype):
@@ -209,8 +259,20 @@ def make_train_step(step_num,
         if trainingConfig.distill_enabled:
 
             if trainingConfig.distillConfig.distill_mode == 'logits_outputs':
-                loss, ce_only_loss = get_loss_soft(step_num, model, teacher_model, criterion, batch_input_ids, batch_target_ids)
+                loss, ce_only_loss, loss_soft = get_loss_soft(actual_step_num,
+                                                   model,
+                                                   teacher_model,
+                                                   criterion,
+                                                   batch_input_ids,
+                                                   batch_target_ids)
 
+            elif trainingConfig.distillConfig.distill_mode == 'hidd_distill':
+                loss, ce_only_loss, loss_hidd_total = get_loss_hidd_distill(actual_step_num,
+                                                           model,
+                                                           teacher_model,
+                                                           criterion,
+                                                           batch_input_ids,
+                                                           batch_target_ids)
             else:
                 raise BrokenPipeError(f"distill_mode should be 'logits_output', but was {trainingConfig.distillConfig.distill_mode}.")
 
@@ -220,41 +282,46 @@ def make_train_step(step_num,
             loss, periodic_losses = get_loss_classic(model, criterion, batch_input_ids, batch_target_ids)
             ce_only_loss = loss
 
-    with record_function("optimizer_zero_grad"):
-        optimizer.zero_grad(set_to_none=True)
+    loss /= accumulation_steps
+    with record_function("backward_pass"):
+        loss.backward()
 
-    if trainingConfig.training_precision == 'float16':
-        scaler = trainingConfig.scaler
 
-        with record_function("scaler_backward_pass"):
-            scaler.scale(loss).backward()
 
-        clip_gradients(model, optimizer)
 
-        with record_function("scaler_optimizer_step"):
-            scaler.step(optimizer)
+    logging_loss_accumulator["ce_only_loss"] += ce_only_loss.item()
+    if loss_soft:
+        logging_loss_accumulator["loss_soft"] += (loss_soft / accumulation_steps).item()
+    if loss_hidd_total:
+        logging_loss_accumulator["loss_hidd_total"] += (loss_hidd_total / accumulation_steps).item()
 
-        with record_function("scaler_update"):
-            scaler.update()
-    else:
-        with record_function("backward_pass"):
-            loss.backward()
 
-        clip_gradients(model, optimizer)
+
+    if (step_num + 1) % accumulation_steps == 0:
+
+        with record_function("gradient_clipping"):
+            clip_gradients(model, optimizer)
 
         with record_function("optimizer_step"):
             optimizer.step()
 
+        step_log(step_num=actual_step_num,
+                 ce_only_loss=logging_loss_accumulator["ce_only_loss"],
+                 soft_loss=logging_loss_accumulator["loss_soft"],
+                 loss_hidd_total=logging_loss_accumulator["loss_hidd_total"],
+                 periodic_losses=periodic_losses,
+                 curr_lr=current_actual_lr,
+                 wandb=wandb,
+                 device=device,
+                 wandb_run_obj=wandb_run_obj,
+                 current_actual_lr=current_actual_lr)
 
-    # TODO rework step_log
-    step_log(step_num=step_num,
-             ce_only_loss=ce_only_loss,
-             periodic_losses=periodic_losses,
-             curr_lr=current_actual_lr,
-             wandb=wandb,
-             device=device,
-             wandb_run_obj=wandb_run_obj,
-             current_actual_lr=current_actual_lr)
+        with record_function("optimizer_zero_grad"):
+            optimizer.zero_grad(set_to_none=True)
+
+        logging_loss_accumulator["ce_only_loss"] = 0.0
+        logging_loss_accumulator["loss_soft"] = 0.0
+        logging_loss_accumulator["loss_hidd_total"] = 0.0
 
 
 def validation_run(model, val_loader, criterion, device, wandb, wandb_run, ENABLE_WANDB, PIN_MEMORY_DATALOADER):
