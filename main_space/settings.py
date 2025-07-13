@@ -68,12 +68,12 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "4M_distilled_5M"
+            self.run_name = "0.8M_distilled_1M"
             self.vocab_size = 5000  # Dummy vocab size
-            self.d_model = 256  # Embedding dimension / model dimension
+            self.d_model = 128  # Embedding dimension / model dimension
             self.num_heads = 8  # Number of attention heads
-            self.num_layers = 6  # Number of Transformer blocks
-            self.ctx_len = 1024  # Max sequence length for dummy data and positional embeddings
+            self.num_layers = 4  # Number of Transformer blocks
+            self.ctx_len = 512  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.1
 
     class DistillConfig:
