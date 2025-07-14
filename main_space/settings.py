@@ -56,7 +56,7 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "30M_self_distill_hidd_1st_checkpoint"
+            self.run_name = "30M_distill_30M_parallel"
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 512  # Embedding dimension / model dimension
             self.num_heads = 16  # Number of attention heads
@@ -91,7 +91,7 @@ class TrainingConfig:
         self.scaler = None
         self.initialize_precision()
         self.doesClipGradients = True
-        self.distill_enabled = False
+        self.distill_enabled = True
 
         self.hyperParamConfig = self.HyperparameterConfig()
         self.distillConfig = self.DistillConfig()

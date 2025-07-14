@@ -17,9 +17,21 @@ def set_step_lr(lr, optimizer):
         param_group['lr'] = lr
 
 
-def get_loss_classic(model, criterion, batch_input_ids, batch_target_ids):
+def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_input_ids, batch_target_ids):
+    # print()
+    # print("="*60)
+    # print(f" --- STEP NUM : {step_num} --- ")
+    # print()
     with record_function("forward_pass"):
-        logits = model(batch_input_ids)
+        logits = model(batch_input_ids,
+                       step_num=step_num,
+                       device_type=device.type,
+                       amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
+                       precision_dtype=trainingConfig.precision_dtype)
+
+    # print()
+    # print("="*60)
+    # print()
 
     with record_function("loss_calculation"):
         # The criterion must have reduction='none' to get per-token losses
@@ -41,13 +53,23 @@ def get_loss_classic(model, criterion, batch_input_ids, batch_target_ids):
     return overall_loss, periodic_losses
 
 
-def get_loss_soft(step_num, model, teacher_model, criterion, batch_input_ids, batch_target_ids):
+def get_loss_soft(step_num, device, trainingConfig, model, teacher_model, criterion, batch_input_ids, batch_target_ids):
     with record_function("forward_pass_teacher"):
-        with torch.no_grad(): # TODO: does this actually do anything?
-            teacher_logits = teacher_model(batch_input_ids)
+        with torch.no_grad():  # TODO: does this actually do anything?
+            teacher_logits = teacher_model(batch_input_ids,
+                                           step_num=step_num,
+                                           device_type=device.type,
+                                           amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
+                                           precision_dtype=trainingConfig.precision_dtype
+                                           )
 
     with record_function("forward_pass_student"):
-        student_logits = model(batch_input_ids)
+        student_logits = model(batch_input_ids,
+                               step_num=step_num,
+                               device_type=device.type,
+                               amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
+                               precision_dtype=trainingConfig.precision_dtype
+                               )
 
     with record_function("loss_calculation_hard_labels"):
         L_hard = criterion(student_logits.view(-1, student_logits.size(-1)), batch_target_ids.view(-1)).mean()
@@ -55,7 +77,6 @@ def get_loss_soft(step_num, model, teacher_model, criterion, batch_input_ids, ba
         if step_num % 400 == 0 or step_num == 0:
             l_hard_item = L_hard.item()
             print(f"hard_loss_item: {l_hard_item}")
-
 
     with record_function("loss_calculation_soft_labels"):
         temperature = 2.0
@@ -73,13 +94,11 @@ def get_loss_soft(step_num, model, teacher_model, criterion, batch_input_ids, ba
             target=teacher_probs
         ).sum(dim=1).mean()
 
-        L_soft = L_soft * (temperature * temperature) # compensating for 1/T^2 bias
+        L_soft = L_soft * (temperature * temperature)  # compensating for 1/T^2 bias
 
         if step_num % 400 == 0 or step_num == 0:
             l_soft_item = L_soft.item()
             print(f"soft_loss_item: {l_soft_item}")
-
-
 
     ratio = L_hard.item() / L_soft.item()
 
@@ -88,13 +107,10 @@ def get_loss_soft(step_num, model, teacher_model, criterion, batch_input_ids, ba
     alpha = 0.5
     L = alpha * L_hard + (1 - alpha) * L_soft
 
-
-
     return L, L_hard, L_soft
 
 
 def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input_ids, batch_target_ids):
-
     with record_function("forward_pass_teacher"):
         with torch.no_grad():
             _, hidd_states_teacher = teacher_model.forward_with_out_hidd_for_distill(batch_input_ids)
@@ -109,8 +125,6 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
             l_hard_item = L_hard.item()
             print(f"hard_loss_item: {l_hard_item}")
 
-
-
     with record_function("loss_calculation_hidd_distill"):
 
         L_hidd_total = 0.0
@@ -118,13 +132,12 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
         teacher_len = len(hidd_states_teacher)
         student_len = len(hidd_states_student)
 
-        curr_indx = teacher_len -1
+        curr_indx = teacher_len - 1
         indexes = [curr_indx]
-        steps = (teacher_len) // (student_len-1)
+        steps = (teacher_len) // (student_len - 1)
 
-        for i in range(curr_indx-1, -1, -steps):
+        for i in range(curr_indx - 1, -1, -steps):
             indexes.insert(0, i)
-
 
         for i in range(len(hidd_states_student)):
             teacher_state = hidd_states_teacher[indexes[i]]
@@ -145,7 +158,6 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
                 print(f"l_hidd_{i}_item: {l_hidd_item}")
 
             L_hidd_total += L_hidd
-
 
     ratio = L_hard.item() / L_hidd_total.item()
 
@@ -210,7 +222,6 @@ def clip_gradients(model, optimizer):
         with record_function("scaler_unscale_gradients"):
             trainingConfig.scaler.unscale_(optimizer)
 
-
     # TODO: implement logging for gradient_clipping before, and after, as a general checker.
     with record_function("gradient_clipping"):
         total = torch.nn.utils.clip_grad_norm_(
@@ -220,7 +231,7 @@ def clip_gradients(model, optimizer):
             error_if_nonfinite=True
         )
 
-        #print(f"Clipped gradient norm: {total:.4f}")
+        # print(f"Clipped gradient norm: {total:.4f}")
 
 
 logging_loss_accumulator = {
@@ -228,6 +239,7 @@ logging_loss_accumulator = {
     'loss_soft': 0.0,
     'loss_hidd_total': 0.0,
 }
+
 
 def make_train_step(step_num,
                     model,
@@ -254,11 +266,8 @@ def make_train_step(step_num,
     loss_soft = None
     loss_hidd_total = None
 
-
     with record_function("optimizer_zero_grad"):
         optimizer.zero_grad(set_to_none=True)
-
-
 
     with autocast(device_type=device.type, enabled=usesAmpOrNot(trainingConfig.training_precision),
                   dtype=trainingConfig.precision_dtype):
@@ -267,34 +276,34 @@ def make_train_step(step_num,
 
             if trainingConfig.distillConfig.distill_mode == 'logits_outputs':
                 loss, ce_only_loss, loss_soft = get_loss_soft(actual_step_num,
-                                                   model,
-                                                   teacher_model,
-                                                   criterion,
-                                                   batch_input_ids,
-                                                   batch_target_ids)
+                                                              device, trainingConfig,
+                                                              model,
+                                                              teacher_model,
+                                                              criterion,
+                                                              batch_input_ids,
+                                                              batch_target_ids)
 
             elif trainingConfig.distillConfig.distill_mode == 'hidd_distill':
                 loss, ce_only_loss, loss_hidd_total = get_loss_hidd_distill(actual_step_num,
-                                                           model,
-                                                           teacher_model,
-                                                           criterion,
-                                                           batch_input_ids,
-                                                           batch_target_ids)
+                                                                            model,
+                                                                            teacher_model,
+                                                                            criterion,
+                                                                            batch_input_ids,
+                                                                            batch_target_ids)
             else:
-                raise BrokenPipeError(f"distill_mode should be 'logits_output', but was {trainingConfig.distillConfig.distill_mode}.")
+                raise BrokenPipeError(
+                    f"distill_mode should be 'logits_output', but was {trainingConfig.distillConfig.distill_mode}.")
 
 
 
         else:
-            loss, periodic_losses = get_loss_classic(model, criterion, batch_input_ids, batch_target_ids)
+            loss, periodic_losses = get_loss_classic(actual_step_num, device, trainingConfig, model, criterion,
+                                                     batch_input_ids, batch_target_ids)
             ce_only_loss = loss
 
     loss /= accumulation_steps
     with record_function("backward_pass"):
         loss.backward()
-
-
-
 
     logging_loss_accumulator["ce_only_loss"] += ce_only_loss.item()
     if loss_soft:
@@ -302,10 +311,7 @@ def make_train_step(step_num,
     if loss_hidd_total:
         logging_loss_accumulator["loss_hidd_total"] += (loss_hidd_total / accumulation_steps).item()
 
-
-
     if (step_num + 1) % accumulation_steps == 0:
-
         with record_function("gradient_clipping"):
             clip_gradients(model, optimizer)
 
@@ -323,42 +329,6 @@ def make_train_step(step_num,
                  wandb_run_obj=wandb_run_obj,
                  current_actual_lr=current_actual_lr)
 
-
-
-
-
-def validation_run(model, val_loader, criterion, device, wandb, wandb_run, ENABLE_WANDB, PIN_MEMORY_DATALOADER):
-    if ENABLE_WANDB and wandb_run:
-        # --- Optional: Validation pass after training ---
-        if val_loader:
-            print("\nRunning validation...")
-            model.eval()
-            total_val_loss = 0
-            val_batches = 0
-            with torch.no_grad():
-                for batch in val_loader:
-                    input_ids = batch['input_ids'].to(device,
-                                                      non_blocking=True if PIN_MEMORY_DATALOADER and device.type == "cuda" else False)
-                    target_ids = batch['labels'].to(device,
-                                                    non_blocking=True if PIN_MEMORY_DATALOADER and device.type == "cuda" else False)
-
-                    logits = model(input_ids)
-                    loss = criterion(logits.view(-1, logits.size(-1)), target_ids.view(-1))
-                    total_val_loss += loss.item()
-                    val_batches += 1
-            if val_batches > 0:
-                avg_val_loss = total_val_loss / val_batches
-                print(f"Average Validation Loss: {avg_val_loss:.4f}")
-                wandb.summary["avg_val_loss"] = avg_val_loss
-            else:
-                print("No batches in validation loader.")
-        else:
-            print("No validation loader provided.")
-
-        print("Finishing W&B run...")
-        wandb.finish()
-        print("W&B run finished.")
-    elif ENABLE_WANDB and not wandb_run:
-        print("W&B enabled but init failed. No W&B run to finish.")
-    else:
-        print("W&B disabled. No W&B run to finish.")
+        logging_loss_accumulator["ce_only_loss"] = 0.0
+        logging_loss_accumulator["loss_soft"] = 0.0
+        logging_loss_accumulator["loss_hidd_total"] = 0.0

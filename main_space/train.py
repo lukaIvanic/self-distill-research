@@ -62,6 +62,8 @@ def print_input_text(input_tensor: torch.Tensor):
 def main():
     # TODO: move to TrainManage, and check for perfect globality
     torch.manual_seed(trainingConfig.seed)
+    torch.cuda.manual_seed(trainingConfig.seed)
+    torch.cuda.manual_seed_all(trainingConfig.seed)
 
     validate_config()
 

@@ -78,8 +78,13 @@ class TrainManager:
             p_dropout=hyperParamConfig.dropout_rate,
             # needs_adapters=True,
             # teacher_d_model=512
-        ).to(self.device)
+        )
 
+        if torch.cuda.device_count() > 1:
+            self.model = nn.DataParallel(self.model)
+
+
+        self.model.to(self.device)
         self.model.eval()
 
     def setup_wandb_watch(self):
@@ -194,7 +199,7 @@ class TrainManager:
         if self.projectConfig.trainingConfig.distill_enabled and self.teacher_model is None:
             raise BrokenPipeError(
                 "trainManage.make_train_step was called and self.projectConfig.trainingConfig.distill_enabled is True, but self.teacher_model wasn't initialized yet. "
-                "Please call trainManage.setup_teacher_model first.")
+                "Please call trainManage.setup_teahcer_model first.")
 
         if self.criterion is None:
             raise BrokenPipeError(
@@ -347,7 +352,7 @@ class TrainManager:
 
         projectName = "self-distill-research"
         entity = "luka_newbie"
-        alias_tag = "1M_classic:run_o4aj0s35_step_11999"
+        alias_tag = "30M_classic:run_e39zl7c0_step_11999"
         artifactName = alias_tag.split(':')[0]
         alias = alias_tag.split(':')[1]
 

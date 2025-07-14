@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import math
+from torch.amp import autocast
+
 
 
 class TokenEmbedding(nn.Module):
@@ -309,6 +311,8 @@ class MyTransformerLM(nn.Module):
         return self.forward_lm_head_layer(x), attns_per_block
 
     def forward_with_out_hidd_for_distill(self, input_ids):
+
+
         x = self.forward_embd_layer(input_ids)
 
         hidd_states_per_block = []
@@ -325,14 +329,35 @@ class MyTransformerLM(nn.Module):
 
         return self.forward_lm_head_layer(x), hidd_states_per_block
 
-    def forward(self, input_ids):
+    def forward(self, input_ids, step_num, device_type, amp_enabled, precision_dtype):
 
-        x = self.forward_embd_layer(input_ids)
 
-        for block in self.transformer_blocks:
-            x, _ = block(x)
+        with autocast(device_type=device_type,
+                enabled=amp_enabled,
+                      dtype=precision_dtype):
 
-        return self.forward_lm_head_layer(x)
+            # print(f"-"*60)
+            # print(
+            #     f"get_loss_classic -> step_num({step_num}) batch_input_ids.shape: {input_ids.shape}, batch_target_ids.shape: {input_ids.shape}")
+            #
+            # print(f"get_loss_classic -> batch_input_ids (first 2 examples, 5 tokens): \n{input_ids[:2, :5]}")
+            #
+            # print(
+            #     f"get_loss_classic -> batch_input_ids sum: {input_ids.sum()}, mean: {input_ids.float().mean()}")
+
+            x = self.forward_embd_layer(input_ids)
+
+            for block in self.transformer_blocks:
+                x, _ = block(x)
+
+            logits = self.forward_lm_head_layer(x)
+
+            # print(f"get_loss_classic -> step_num({step_num}) logits.shape: {logits.shape}")
+            # print(f"get_loss_classic -> logits (first example, 2 tokens, 10 values): \n{logits[0, :2, :10]}")
+            # print(f"get_loss_classic -> logits sum: {logits.sum()}, mean: {logits.mean()}, std: {logits.std()}")
+            # print(f"-"*60)
+
+        return logits
 
     def inference_step(self, input_ids, kv_caches=None):
         x = self.forward_embd_layer(input_ids)
