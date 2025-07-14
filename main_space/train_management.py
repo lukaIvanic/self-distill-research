@@ -13,6 +13,7 @@ import wandb
 from main_space.settings import Config
 from main_space.model import MyTransformerLM
 from main_space.utils.train_utils import make_train_step
+from main_space.utils.validation_utils import do_validation_set
 from main_space.utils.dataloader_utils import get_dataloader, get_next_batch
 from main_space.utils.log_utils import setup_wandb_watch, initialize_wandb, get_profiler_context
 
@@ -43,6 +44,8 @@ class TrainManager:
         self.train_dataloader = None
         self.train_iter = None
 
+        self.validation_dataloader = None
+
         self.current_train_step = None  # TODO: this step represents total steps, as opposed to the training step in the current epoch
         self.current_train_epoch = None
         self.input_ids = None
@@ -58,7 +61,15 @@ class TrainManager:
         self.wandb_run = initialize_wandb()
 
     def setup_train_dataloader(self):
-        self.train_dataloader = get_dataloader(split='train')
+        # self.train_dataloader = get_dataloader(split='train')
+        print()
+        print("*"*180)
+        print(f"###### USING VALIDATION DATALOADER, CHANGE BACK AFTER DEVELOPMENT ######")
+        print("*"*180)
+        self.train_dataloader = get_dataloader(split='validation')
+
+    def setup_validation_dataloader(self):
+        self.validation_dataloader = get_dataloader(split='validation')
 
     def setup_model(self):
 
@@ -240,6 +251,18 @@ class TrainManager:
             profiler: torch.profiler.profile = self.profiler_or_null_context
             profiler.step()
 
+
+        curr_step = self.current_train_step
+        log_freq = self.projectConfig.wandbConfig.wandb_log_freq_metrics
+
+        avg_val_loss = None
+        if curr_step == 0 or (curr_step % log_freq == 0):
+            print(f"Doing validation set for step_num: {curr_step}")
+            avg_val_loss = do_validation_set(model=self.model,
+                              criterion=self.criterion,
+                              dataloader=self.validation_dataloader,
+                              device=self.device)
+
         make_train_step(
             step_num=self.current_train_step,
             model=self.model,
@@ -250,6 +273,7 @@ class TrainManager:
             batch_input_ids=self.input_ids,
             batch_target_ids=self.target_ids,
             wandb_run_obj=self.wandb_run,
+            avg_val_loss=avg_val_loss
         )
 
         self.current_train_step += 1

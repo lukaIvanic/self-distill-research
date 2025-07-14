@@ -247,6 +247,7 @@ class ValidationManager:
         checkpointConfig = self.projectConfig.checkpointConfig
 
         if not checkpointConfig.attempt_load_checkpoint_if_exists:
+            print(f"Returning because attempt_load_checkpoint_if_exists is false")
             return
 
         if self.wandb_run is None:

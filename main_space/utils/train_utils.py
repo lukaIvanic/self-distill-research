@@ -47,8 +47,9 @@ def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_i
         avg_loss_per_position = losses_by_position.mean(dim=0)
 
         # Reshape into periods of 64 and average each period
-        period = 64
-        periodic_losses = avg_loss_per_position.view(-1, period).mean(dim=1)
+        # period = 64
+        # periodic_losses = avg_loss_per_position.view(-1, period).mean(dim=1)
+        periodic_losses = None
 
     return overall_loss, periodic_losses
 
@@ -249,7 +250,8 @@ def make_train_step(step_num,
                     device,
                     batch_input_ids,
                     batch_target_ids,
-                    wandb_run_obj):
+                    wandb_run_obj,
+                    avg_val_loss):
     global logging_loss_accumulator
 
     trainingConfig = get_training_config()
@@ -327,7 +329,8 @@ def make_train_step(step_num,
                  wandb=wandb,
                  device=device,
                  wandb_run_obj=wandb_run_obj,
-                 current_actual_lr=current_actual_lr)
+                 current_actual_lr=current_actual_lr,
+                 avg_val_loss=avg_val_loss)
 
         logging_loss_accumulator["ce_only_loss"] = 0.0
         logging_loss_accumulator["loss_soft"] = 0.0

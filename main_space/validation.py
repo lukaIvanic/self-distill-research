@@ -15,7 +15,10 @@ checkpointConfig = settings_utils.get_checkpoint_config()
 def setupForValidation():
     checkpointConfig.checkpoint_frequency = float('inf')
     checkpointConfig.attempt_load_checkpoint_if_exists = True
-    checkpointConfig.alias_to_load = "run_o4aj0s35_step_2999"
+
+    alias = "30M_classic:run_e39zl7c0_step_11999".split(":")
+    checkpointConfig.artifact_base_name = alias[0]
+    checkpointConfig.alias_to_load = alias[1]
     wandbConfig.wandb_log_freq_metrics = 5
 
 

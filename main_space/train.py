@@ -12,14 +12,11 @@ from main_space.utils.checker_utils import validate_config
 from tokenizers import Tokenizer
 
 
-trainManage = get_global_train_manager()
-
-trainingConfig = settings_utils.get_training_config()
-
-tokenizer_path = os.path.join(os.getcwd(), "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")
-tokenizer = Tokenizer.from_file(tokenizer_path)
-
 def print_input_text(input_tensor: torch.Tensor):
+
+    tokenizer_path = os.path.join(os.getcwd(), "dataset_creation/tokenizer/1_raw_wikitext103_bpe_vocab_5000.json")
+    tokenizer = Tokenizer.from_file(tokenizer_path)
+
     """
     Prints a comprehensive set of details about a PyTorch tensor.
 
@@ -60,6 +57,10 @@ def print_input_text(input_tensor: torch.Tensor):
 
 
 def main():
+    trainManage = get_global_train_manager()
+
+    trainingConfig = settings_utils.get_training_config()
+
     # TODO: move to TrainManage, and check for perfect globality
     torch.manual_seed(trainingConfig.seed)
     torch.cuda.manual_seed(trainingConfig.seed)
@@ -86,6 +87,7 @@ def main():
             print_teacher_model_params(trainManage.teacher_model)
 
         trainManage.setup_train_dataloader()
+        trainManage.setup_validation_dataloader()
         trainManage.init_train_iterator()
         trainManage.init_curr_step_counter()
 
