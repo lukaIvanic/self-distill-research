@@ -80,17 +80,6 @@ class TrainManager:
             # teacher_d_model=512
         ).to(self.device)
 
-
-        if torch.cuda.device_count() > 1:
-            self.model = nn.DataParallel(self.model)
-            print("="*120)
-            print("Let's use", torch.cuda.device_count(), "GPUs!")
-            print("="*120)
-        else:
-            print("="*120)
-            print(f"Only {torch.cuda.device_count()} GPUs available!, NOT USING DATA PARALLEL")
-            print("="*120)
-
         self.model.eval()
 
     def setup_wandb_watch(self):

@@ -32,7 +32,7 @@ class WandbConfig:
         self.wandb_watch_level = "all"  # Options: "all", "gradients", "parameters", "none"
         self.wandb_log_freq_model_watch = 1000  # Frequency for wandb.watch
         self.wandb_log_freq_metrics = 200  # Frequency for wandb.log() for loss, lr, etc.
-        self.does_wandb_log_graph = False  # Enable to get 'model' tab in wandb
+        self.does_wandb_log_graph = True  # Enable to get 'model' tab in wandb
 
         self.profilerConfig = self.ProfilerConfig()
         self.loggingConfig = self.LoggingConfig()
@@ -75,7 +75,7 @@ class TrainingConfig:
         self.warmup_steps = int(2000)
         self.train_steps = int(12000)
         self.peak_lr = 8e-4
-        self.batch_size = 16
+        self.batch_size = 32
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
         self.min_lr = 8e-5
         self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
