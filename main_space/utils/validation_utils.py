@@ -62,10 +62,14 @@ def do_validation_set(model, criterion, dataloader, device):
     dataset_iter = iter(dataloader)
 
     org_len = len(dataloader)
+    print(f"Len of org dataloader is {org_len}")
 
+    max_a = 5
     total_val_loss = 0
 
-    for i in range(len(dataloader) + 1):
+
+
+    for i in range(min(len(dataloader) + 1, max_a)):
 
         input_ids, target_ids = get_next_val_batch(dataset_iter,
                                                    device,
@@ -86,3 +90,4 @@ def do_validation_set(model, criterion, dataloader, device):
 
     print(f"Final avg_val_loss is {avg_val_loss}.")
 
+    return avg_val_loss.item()

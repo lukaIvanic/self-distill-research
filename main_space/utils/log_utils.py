@@ -179,7 +179,7 @@ def step_log(step_num, ce_only_loss, soft_loss, loss_hidd_total, periodic_losses
         print(
             f"Step [{step_num + 1}/{trainingConfig.train_steps}],"
             f" Hard loss: {ce_only_loss:.4f},"
-            f"{(' Avg val loss: ' + avg_val_loss + ' ') if avg_val_loss is not None else ''}"
+            f"{(' Avg val loss: ' + str(avg_val_loss) + ' ') if avg_val_loss is not None else ''}"
             f"LR: {current_actual_lr:.2e}")
 
     if wandbConfig.is_wandb_enabled and wandb_run_obj and (step_num + 1) % wandbConfig.wandb_log_freq_metrics == 0:
