@@ -213,12 +213,16 @@ def clip_gradients(model, optimizer):
 
     # TODO: implement logging for gradient_clipping before, and after, as a general checker.
     with record_function("gradient_clipping"):
-        torch.nn.utils.clip_grad_norm_(
+        total = torch.nn.utils.clip_grad_norm_(
             parameters=model.parameters(),
             max_norm=trainingConfig.gradient_clip_norm,
             norm_type=2.0,
             error_if_nonfinite=True
         )
+
+        print(f"Clipped gradient norm: {total:.4f}")
+
+
 logging_loss_accumulator = {
     'ce_only_loss': 0.0,
     'loss_soft': 0.0,
@@ -250,6 +254,9 @@ def make_train_step(step_num,
     loss_soft = None
     loss_hidd_total = None
 
+
+    with record_function("optimizer_zero_grad"):
+        optimizer.zero_grad(set_to_none=True)
 
 
 
@@ -316,12 +323,8 @@ def make_train_step(step_num,
                  wandb_run_obj=wandb_run_obj,
                  current_actual_lr=current_actual_lr)
 
-        with record_function("optimizer_zero_grad"):
-            optimizer.zero_grad(set_to_none=True)
 
-        logging_loss_accumulator["ce_only_loss"] = 0.0
-        logging_loss_accumulator["loss_soft"] = 0.0
-        logging_loss_accumulator["loss_hidd_total"] = 0.0
+
 
 
 def validation_run(model, val_loader, criterion, device, wandb, wandb_run, ENABLE_WANDB, PIN_MEMORY_DATALOADER):

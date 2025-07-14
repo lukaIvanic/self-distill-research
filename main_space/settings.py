@@ -31,7 +31,7 @@ class WandbConfig:
         self.wandb_entity = "luka_newbie"
         self.wandb_watch_level = "all"  # Options: "all", "gradients", "parameters", "none"
         self.wandb_log_freq_model_watch = 1000  # Frequency for wandb.watch
-        self.wandb_log_freq_metrics = 10  # Frequency for wandb.log() for loss, lr, etc.
+        self.wandb_log_freq_metrics = 200  # Frequency for wandb.log() for loss, lr, etc.
         self.does_wandb_log_graph = False  # Enable to get 'model' tab in wandb
 
         self.profilerConfig = self.ProfilerConfig()
@@ -51,28 +51,16 @@ class DatasetConfig:
 
 
 class TrainingConfig:
-    """
-           Testing for 3k steps:
-           lr | batch_size
-           1e-3 | 256
-           1e-3 | 512
-           1e-3 | 1024
-           3e-4 | 256
-           3e-4 | 512
-           3e-4 | 1024
-           1e-4 | 256
-           1e-4 | 512
-           1e-4 | 1024
-    """
+
 
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "4M_distilled_5M"
+            self.run_name = "30M_self_distill_hidd_1st_checkpoint"
             self.vocab_size = 5000  # Dummy vocab size
-            self.d_model = 256  # Embedding dimension / model dimension
-            self.num_heads = 8  # Number of attention heads
-            self.num_layers = 6  # Number of Transformer blocks
+            self.d_model = 512  # Embedding dimension / model dimension
+            self.num_heads = 16  # Number of attention heads
+            self.num_layers = 10  # Number of Transformer blocks
             self.ctx_len = 1024  # Max sequence length for dummy data and positional embeddings
             self.dropout_rate = 0.1
 
@@ -86,12 +74,11 @@ class TrainingConfig:
     def __init__(self):
         self.warmup_steps = int(2000)
         self.train_steps = int(12000)
-        self.peak_lr = 1e-3
+        self.peak_lr = 8e-4
         self.batch_size = 16
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
-        self.min_lr = 1e-4
+        self.min_lr = 8e-5
         self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
-        # TODO: add elsewhere check for gradient norm setting
         self.gradient_clip_norm = 1.0
         self.seed = 42
 
@@ -104,7 +91,7 @@ class TrainingConfig:
         self.scaler = None
         self.initialize_precision()
         self.doesClipGradients = True
-        self.distill_enabled = True
+        self.distill_enabled = False
 
         self.hyperParamConfig = self.HyperparameterConfig()
         self.distillConfig = self.DistillConfig()
@@ -153,9 +140,18 @@ class CheckpointConfig:
                                     "5M_distill_from_10M_logits",
                                     "800M_classic",
                                     "1B_classic",
-                                    "4M_distilled_5M"]
+                                    "4M_distilled_5M",
+                                    "1M_classic_2x_train",
+                                    "1M_classic_2x_train_incr_lr",
+                                    "1M_classic_2x_train_incr_lr_1e-3",
+                                    "1M_distill_2M_outs_alpha_0.9",
+                                    "1M_distill_2M_outs_alpha_0.1",
+                                    "1M_distill_2M_outs_alpha_0.5",
+                                    "1M_distill_2M_outs_norm_alpha_0.5",
+                                    "1M_distill_2M_hidd_norm_alpha_0.5",
+                                    "30M_self_distill_first_checkpoint"]
 
-        self.artifact_base_name = "4M_distilled_5M"  # TODO: fix for consistency
+        self.artifact_base_name = "30M_self_distill_first_checkpoint"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")

@@ -51,6 +51,29 @@ def calculate_lr(step_num):
         k = (min_to_peak_ratio_sq * max_x) / (1 - min_to_peak_ratio_sq)
         lr = trainingConfig.peak_lr * math.sqrt(k / (x + k))
         return max(trainingConfig.min_lr, min(lr, trainingConfig.peak_lr))
+
+    elif trainingConfig.scheduler_type == "1M_specific_2x_train":
+        first_stop = 12000
+        total_steps = 24000
+        leftover = total_steps - first_stop
+
+        x = step_num - trainingConfig.warmup_steps
+        max_x = first_stop - trainingConfig.warmup_steps
+
+        if step_num < first_stop:
+            cos_base = (math.cos((x * math.pi) / max_x) + 1) / 2.0
+            lr = cos_base * (trainingConfig.peak_lr - trainingConfig.min_lr) + trainingConfig.min_lr
+            return lr
+        else:
+            leftover_steps = total_steps - step_num
+            org_min_lr = trainingConfig.min_lr
+            new_max_lr = org_min_lr * 4.0
+
+            lr = org_min_lr + ((step_num - first_stop)/leftover) * (new_max_lr - org_min_lr)
+            return lr
+
+
+
     else:
         raise ValueError(f"Unknown scheduler_type: {trainingConfig.scheduler_type}")
 
