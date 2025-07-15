@@ -66,7 +66,6 @@ def main():
     # TODO: move to TrainManage, and check for perfect globality
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
-    torch.use_deterministic_algorithms(True)
     random.seed(trainingConfig.seed)
     np.random.seed(trainingConfig.seed)
     torch.manual_seed(trainingConfig.seed)

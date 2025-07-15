@@ -62,11 +62,11 @@ class TrainManager:
 
     def setup_train_dataloader(self):
         # self.train_dataloader = get_dataloader(split='train')
-        print()
-        print("*"*180)
-        print(f"###### USING VALIDATION DATALOADER, CHANGE BACK AFTER DEVELOPMENT ######")
-        print("*"*180)
-        self.train_dataloader = get_dataloader(split='validation')
+        # print()
+        # print("*"*180)
+        # print(f"###### USING VALIDATION DATALOADER, CHANGE BACK AFTER DEVELOPMENT ######")
+        # print("*"*180)
+        self.train_dataloader = get_dataloader(split='train')
 
     def setup_validation_dataloader(self):
         self.validation_dataloader = get_dataloader(split='validation')
@@ -195,6 +195,41 @@ class TrainManager:
         if new_epoch_happened:
             self.current_train_epoch += 1
 
+    def get_non_embd_params(self):
+
+        d_model = self.model.d_model
+        n_layers = self.model.n_layers
+
+        params_per_layer_approx = 12 * d_model ** 2
+        total_non_embedding_params = n_layers * params_per_layer_approx
+
+        return total_non_embedding_params
+
+    def get_total_ops_rough(self, steps):
+        # get_non_embd_params..
+        trainingConfig = self.projectConfig.trainingConfig
+        ctx_len = trainingConfig.hyperParamConfig.ctx_len
+        batch_size = trainingConfig.batch_size
+        tokens_in_batch= ctx_len * batch_size
+
+        n = self.get_non_embd_params()
+
+        d = steps * tokens_in_batch
+
+
+        result =  6 * n * d
+        if trainingConfig.distill_enabled:
+            teacher_d_model = self.teacher_model.d_model
+            teacher_n_layers = self.teacher_model.n_layers
+
+            params_per_layer_approx = 12 * teacher_d_model ** 2
+            n_teacher = teacher_n_layers * params_per_layer_approx
+
+            result += 2 * n_teacher * d
+
+        return result
+
+
     def make_train_step(self):
 
         if self.current_train_step is None:
@@ -211,7 +246,7 @@ class TrainManager:
         if self.projectConfig.trainingConfig.distill_enabled and self.teacher_model is None:
             raise BrokenPipeError(
                 "trainManage.make_train_step was called and self.projectConfig.trainingConfig.distill_enabled is True, but self.teacher_model wasn't initialized yet. "
-                "Please call trainManage.setup_teahcer_model first.")
+                "Please call trainManage.steup_teahcer_model first.")
 
         if self.criterion is None:
             raise BrokenPipeError(
@@ -257,7 +292,7 @@ class TrainManager:
         log_freq = self.projectConfig.wandbConfig.wandb_log_freq_metrics
 
         avg_val_loss = None
-        if (curr_step == 0 or ((curr_step+1) % log_freq == 0)) and self.projectConfig.wandbConfig.log_validation:
+        if (((curr_step+1) % log_freq == 0)) and self.projectConfig.wandbConfig.log_validation:
             print(f"Doing validation set for step_num: {curr_step}")
             avg_val_loss = do_validation_set(model=self.model,
                               criterion=self.criterion,
@@ -274,7 +309,8 @@ class TrainManager:
             batch_input_ids=self.input_ids,
             batch_target_ids=self.target_ids,
             wandb_run_obj=self.wandb_run,
-            avg_val_loss=avg_val_loss
+            avg_val_loss=avg_val_loss,
+            total_ops=self.get_total_ops_rough(curr_step+1)
         )
 
         self.current_train_step += 1
@@ -377,7 +413,7 @@ class TrainManager:
 
         projectName = "self-distill-research"
         entity = "luka_newbie"
-        alias_tag = "30M_classic:run_e39zl7c0_step_11999"
+        alias_tag = "25M_classic:run_xgbuzwiz_step_11999"
         artifactName = alias_tag.split(':')[0]
         alias = alias_tag.split(':')[1]
 

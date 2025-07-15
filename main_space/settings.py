@@ -31,9 +31,9 @@ class WandbConfig:
         self.wandb_entity = "luka_newbie"
         self.wandb_watch_level = "all"  # Options: "all", "gradients", "parameters", "none"
         self.wandb_log_freq_model_watch = 1000  # Frequency for wandb.watch
-        self.wandb_log_freq_metrics = 1  # Frequency for wandb.log() for loss, lr, etc.
+        self.wandb_log_freq_metrics = 200  # Frequency for wandb.log() for loss, lr, etc.
         self.does_wandb_log_graph = True  # Enable to get 'model' tab in wandb
-        self.log_validation = False
+        self.log_validation = True
 
         self.profilerConfig = self.ProfilerConfig()
         self.loggingConfig = self.LoggingConfig()
@@ -46,7 +46,7 @@ class DatasetConfig:
         self.cache_dir = os.path.join(os.getcwd(), "/dataset_creation/temp_files/cache_hf_datasets")
         self.dataset_name = "wikitext"
         self.dataset_config = "wikitext-103-v1"
-        self.num_workers_dataloader = 1
+        self.num_workers_dataloader = 8
         print(f"NUMBER OF WORKERS FOR DATALOADER IS SET TO: {self.num_workers_dataloader}!!!!!!!!!")
         self.pin_memory_dataloader = True
         print(f"PIN MEMORY DATALOADER IS SET TO: {self.pin_memory_dataloader}!!!!!!!!!")
@@ -59,31 +59,31 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "10k_classic_heads"
+            self.run_name = "25M_classic_aux_test"
             self.vocab_size = 5000  # Dummy vocab size
-            self.d_model = 1  # Embedding dimension / model dimension
-            self.num_heads = 1  # Number of attention heads
-            self.num_layers = 1  # Number of Transformer blocks
-            self.ctx_len = 16  # Max sequence length for dummy data and positional embeddings
-            self.dropout_rate = 0.0
-            self.attach_aux_heads = True
+            self.d_model = 512  # Embedding dimension / model dimension
+            self.num_heads = 16  # Number of attention heads
+            self.num_layers = 7  # Number of Transformer blocks
+            self.ctx_len = 1024  # Max sequence length for dummy data and positional embeddings
+            self.dropout_rate = 0.1
+            self.attach_aux_heads = False
 
     class DistillConfig:
 
         def __init__(self):
 
-            self.distill_mode = 'logits_outputs' # Can be "logits_outputs", "hidd_distill"
+            self.distill_mode = 'hidd_distill' # Can be "logits_outputs", "hidd_distill"
 
 
     def __init__(self):
 
-        self.warmup_steps = int(10)
-        self.train_steps = int(50)
-        self.peak_lr = 1e-1
-        self.batch_size = 1
+        self.warmup_steps = int(2000)
+        self.train_steps = int(12000)
+        self.peak_lr = 8e-4
+        self.batch_size = 32
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
-        self.min_lr = 1e-2
-        self.training_precision = "float32"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
+        self.min_lr = 8e-5
+        self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
         self.gradient_clip_norm = 1.0
         self.seed = 42
 
@@ -155,9 +155,21 @@ class CheckpointConfig:
                                     "1M_distill_2M_outs_norm_alpha_0.5",
                                     "1M_distill_2M_hidd_norm_alpha_0.5",
                                     "30M_self_distill_first_checkpoint",
-                                    "10k_classic"]
+                                    "10k_classic",
+                                    "30M_testing_script",
+                                    "30M_classic_w_heads",
+                                    "30M_distill_30M_hidd_val",
+                                    "12M_distill_30M_hidd_val",
+                                    "12M_classic",
+                                    "12M_distill_30M_hidd",
+                                    "12M_distill_12M_hidd",
+                                    "12M_distill_30M_hidd_2_5_7",
+                                    "25M_classic",
+                                    "25M_distill_30M_hidd_2_5_7",
+                                    "25M_distill_25M_hidd_2_3_4",
+                                    "25M_classic_aux_test"]
 
-        self.artifact_base_name = "10k_classic"  # TODO: fix for consistency
+        self.artifact_base_name = "25M_classic_aux_test"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")

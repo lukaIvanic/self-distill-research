@@ -17,10 +17,22 @@ def set_step_lr(lr, optimizer):
         param_group['lr'] = lr
 
 
+def check_and_print_grad_nan_inf(model, step_num):
+    found_issue = False
+    for name, param in model.named_parameters():
+        if param.grad is None:
+            continue
+
+        if not torch.all(torch.isfinite(param.grad)):
+            print(f"!!! WARNING: Step {step_num}: Found NaN or Inf in gradient of '{name}'")
+            found_issue = True
+
+    return found_issue
+
 def get_loss_heads(step_num, device, trainingConfig, model, criterion, batch_input_ids, batch_target_ids):
 
     with record_function("forward_pass"):
-        logits = model(batch_input_ids,
+        logits, aux_logits = model.forward_w_aux(batch_input_ids,
                        step_num=step_num,
                        device_type=device.type,
                        amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
@@ -32,25 +44,30 @@ def get_loss_heads(step_num, device, trainingConfig, model, criterion, batch_inp
         main_ce_loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
         main_ce_loss = main_ce_loss.mean()
 
+        aux_heads_losses = []
+        aux_total_loss = 0
 
-        # aux_heads_losses = []
-        #
-        # for i in range(len(aux_logits)):
-        #     block_aux_logits = aux_logits[i]
-        #     aux_loss = criterion(block_aux_logits.view(-1, block_aux_logits.size(-1)), batch_target_ids.view(-1))
-        #     aux_loss = aux_loss.mean()
-        #     aux_heads_losses.append(aux_loss)
-        #
-        #     all_loss += aux_loss
+        for i in range(len(aux_logits)):
+            block_aux_logits = aux_logits[i]
+            aux_loss = criterion(block_aux_logits.view(-1, block_aux_logits.size(-1)), batch_target_ids.view(-1))
+            aux_loss = aux_loss.mean()
+            aux_heads_losses.append(aux_loss)
 
-    return main_ce_loss, None
+            aux_total_loss += aux_loss
+
+
+
+
+    total_loss = main_ce_loss + aux_total_loss
+
+    return total_loss, main_ce_loss, aux_heads_losses
 
 def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_input_ids, batch_target_ids):
 
 
 
     with record_function("forward_pass"):
-        logits = model(batch_input_ids,
+        logits, aux_logits = model(batch_input_ids,
                        step_num=step_num,
                        device_type=device.type,
                        amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
@@ -65,6 +82,9 @@ def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_i
         # Calculate the original single average loss
         overall_loss = per_token_losses.mean()
 
+        aux_loss = criterion(aux_logits.view(-1, aux_logits.size(-1)), batch_target_ids.view(-1))
+        aux_loss = aux_loss.mean()
+
         # Reshape to (batch_size, sequence_length) to analyze loss by position
         losses_by_position = per_token_losses.view(batch_input_ids.size(0), -1)
 
@@ -75,6 +95,8 @@ def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_i
         # period = 64
         # periodic_losses = avg_loss_per_position.view(-1, period).mean(dim=1)
         periodic_losses = None
+
+    print(f"Aux lost is: {aux_loss}, hard loss is: {overall_loss}")
 
     return overall_loss, periodic_losses
 
@@ -155,19 +177,23 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
 
         L_hidd_total = 0.0
 
-        teacher_len = len(hidd_states_teacher)
-        student_len = len(hidd_states_student)
+        override_distill = True
 
-        curr_indx = teacher_len - 1
-        indexes = [curr_indx]
-        steps = (teacher_len) // (student_len - 1)
+        if len(hidd_states_student) == len(hidd_states_teacher) and not override_distill:
+            indexes_teacher = [i for i in range(len(hidd_states_student))]
+            indexes_student = [i for i in range(len(hidd_states_student))]
+        else:
+            indexes_teacher = [2, 3, 4]
+            indexes_student = [2, 3, 4]
 
-        for i in range(curr_indx - 1, -1, -steps):
-            indexes.insert(0, i)
+        if step_num % 200 == 0 or step_num == 0:
+            print(f"teacher-student indexes: {indexes_teacher}-{indexes_student}")
 
-        for i in range(len(hidd_states_student)):
-            teacher_state = hidd_states_teacher[indexes[i]]
-            student_state = hidd_states_student[i]
+
+
+        for i in range(len(indexes_student)):
+            teacher_state = hidd_states_teacher[indexes_teacher[i]]
+            student_state = hidd_states_student[indexes_student[i]]
 
             if teacher_state.shape != student_state.shape:
                 raise ValueError(f"Teacher ({teacher_state.shape}) and student ({student_state.shape}) "
@@ -276,7 +302,8 @@ def make_train_step(step_num,
                     batch_input_ids,
                     batch_target_ids,
                     wandb_run_obj,
-                    avg_val_loss):
+                    avg_val_loss,
+                    total_ops):
     global logging_loss_accumulator
 
     trainingConfig = get_training_config()
@@ -289,6 +316,7 @@ def make_train_step(step_num,
 
     model.train()
 
+    aux_head_losses = None
     periodic_losses = None
     loss_soft = None
     loss_hidd_total = None
@@ -324,13 +352,11 @@ def make_train_step(step_num,
 
 
         else:
-            # attach_heads = trainingConfig.hyperParamConfig.attach_aux_heads
-            attach_heads = False
+            attach_heads = trainingConfig.hyperParamConfig.attach_aux_heads
 
             if attach_heads:
-                loss, _ = get_loss_heads(actual_step_num, device, trainingConfig, model, criterion,
+                loss, ce_only_loss, aux_head_losses = get_loss_heads(actual_step_num, device, trainingConfig, model, criterion,
                                                      batch_input_ids, batch_target_ids)
-                ce_only_loss = loss
 
             else:
                 loss, periodic_losses = get_loss_classic(actual_step_num, device, trainingConfig, model, criterion,
@@ -343,6 +369,9 @@ def make_train_step(step_num,
     loss /= accumulation_steps
     with record_function("backward_pass"):
         loss.backward()
+
+
+    check_and_print_grad_nan_inf(model, step_num)
 
     logging_loss_accumulator["ce_only_loss"] += ce_only_loss.item()
     if loss_soft:
@@ -367,7 +396,9 @@ def make_train_step(step_num,
                  device=device,
                  wandb_run_obj=wandb_run_obj,
                  current_actual_lr=current_actual_lr,
-                 avg_val_loss=avg_val_loss)
+                 avg_val_loss=avg_val_loss,
+                 total_ops=total_ops,
+                 aux_head_losses=aux_head_losses)
 
         logging_loss_accumulator["ce_only_loss"] = 0.0
         logging_loss_accumulator["loss_soft"] = 0.0

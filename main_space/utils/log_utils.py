@@ -170,25 +170,37 @@ def log_validation_step(step_num, curr_avg_ce_loss, curr_avg_periodic_losses, de
         profiler_obj.step()
 
 def step_log(step_num, ce_only_loss, soft_loss, loss_hidd_total, periodic_losses, curr_lr, device, wandb, wandb_run_obj, current_actual_lr,
-             avg_val_loss):
+             avg_val_loss, total_ops, aux_head_losses):
 
     wandbConfig = get_wandb_config()
     trainingConfig = get_training_config()
 
     if (step_num + 1) % (wandbConfig.wandb_log_freq_metrics) == 0:
+
+        print_heads = ""
+        if aux_head_losses is not None:
+            print_heads = "[" + ", ".join([f"aux_loss_{i}: {aux_loss:.2f}" for i, aux_loss in enumerate(aux_head_losses)]) + "]"
+            print("Aux LOSSES: " + str(print_heads))
+            print_heads = f", Aux losses: {print_heads}"
+
         print(
             f"Step [{step_num + 1}/{trainingConfig.train_steps}],"
             f" Hard loss: {ce_only_loss:.4f},"
             f"{(' Avg val loss: ' + str(avg_val_loss) + ' ') if avg_val_loss is not None else ''}"
-            f"LR: {current_actual_lr:.2e}")
+            f"LR: {current_actual_lr:.2e}, Total ops: {total_ops:.2e}"
+            f"{print_heads}")
 
     if wandbConfig.is_wandb_enabled and wandb_run_obj and (step_num + 1) % wandbConfig.wandb_log_freq_metrics == 0:
         log_data = {
             "train_loss": ce_only_loss,
             "iteration": step_num + 1,
             "learning_rate": curr_lr,
+            "total_ops": total_ops,
 
         }
+        if aux_head_losses is not None:
+            for i, aux_loss in enumerate(aux_head_losses):
+                log_data[f"aux_loss_{i}"] = aux_loss
 
         if avg_val_loss:
             log_data["avg_loss_val"] = avg_val_loss

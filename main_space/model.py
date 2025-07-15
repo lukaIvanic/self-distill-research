@@ -191,19 +191,19 @@ class TransBlock(nn.Module):
         self.ln1 = nn.LayerNorm(d_model)
         self.ln2 = nn.LayerNorm(d_model)
 
-        self.aux_lm = None
+        self.aux_lm_head = None
         if attach_aux_head:
-            self.aux_lm_head = LMHead(d_model, vocab_size, device="meta")
+            self.aux_lm_head = LMHead(d_model, vocab_size)
 
 
-    # def forward_w_aux(self, x):
-    #     mha_output, _ = self.sa(self.ln1(x))
-    #     x = x + mha_output
-    #     x = x + self.ffwd(self.ln2(x))
-    #
-    #     aux_logits = self.aux_lm_head(x.detach())
-    #
-    #     return x, aux_logits
+    def forward_w_aux(self, x):
+        mha_output, _ = self.sa(self.ln1(x))
+        x = x + mha_output
+        x = x + self.ffwd(self.ln2(x))
+
+        aux_logits = self.aux_lm_head(x.detach())
+
+        return x, aux_logits
 
     def forward(self, x):
         mha_output, _ = self.sa(self.ln1(x))
@@ -219,10 +219,10 @@ class TransBlock(nn.Module):
 
 
 class LMHead(nn.Module):
-    def __init__(self, d_model, vocab_size, token_embd_weights=None, device=None):
+    def __init__(self, d_model, vocab_size, token_embd_weights=None):
         super().__init__()
-        self.final_norm = nn.LayerNorm(d_model, device=device)  # Common to have a final LayerNorm
-        self.lm_head = nn.Linear(d_model, vocab_size, device=device)
+        self.final_norm = nn.LayerNorm(d_model)  # Common to have a final LayerNorm
+        self.lm_head = nn.Linear(d_model, vocab_size)
         if token_embd_weights is not None:
             self.lm_head.weight = token_embd_weights
 
@@ -235,6 +235,9 @@ class MyTransformerLM(nn.Module):
     def __init__(self, vocab_size, d_model, n_heads, n_layers, ctx_size, p_dropout, needs_adapters=False,
                  teacher_d_model=None, attach_aux_heads=False):
         super().__init__()
+
+        self.d_model = d_model
+        self.n_layers = n_layers
 
         self.initial_std = d_model ** -0.5
 
@@ -253,12 +256,13 @@ class MyTransformerLM(nn.Module):
         )
 
         self.lm_head = LMHead(d_model, vocab_size, self.token_embedding.embedding.weight)
+        self.second_ml_head = LMHead(d_model, vocab_size)
 
         self.adapters = None
         if needs_adapters:
             self.adapters = nn.ModuleList([nn.Linear(d_model, teacher_d_model) for _ in range(n_layers)])
 
-        self._initialize_aux_heads(seed=1337)
+        # self._initialize_aux_heads(seed=1337)
         self.apply(self._init_default_weights)
         self._apply_scaled_residual_initialization(n_layers)
 
@@ -403,10 +407,15 @@ class MyTransformerLM(nn.Module):
             for block in self.transformer_blocks:
                 x, _ = block(x)
 
+
+            x_detached = x.detach()
+            aux_logits = "luka..."
+            aux_logits = self.second_ml_head(x_detached)
+
             logits = self.forward_lm_head_layer(x)
 
 
-        return logits
+        return logits, aux_logits
 
     def inference_step(self, input_ids, kv_caches=None):
         x = self.forward_embd_layer(input_ids)
