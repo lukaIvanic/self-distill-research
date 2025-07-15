@@ -87,6 +87,7 @@ class TrainManager:
             n_layers=hyperParamConfig.num_layers,
             ctx_size=hyperParamConfig.ctx_len,
             p_dropout=hyperParamConfig.dropout_rate,
+            attach_aux_heads=hyperParamConfig.attach_aux_heads
             # needs_adapters=True,
             # teacher_d_model=512
         )
@@ -256,7 +257,7 @@ class TrainManager:
         log_freq = self.projectConfig.wandbConfig.wandb_log_freq_metrics
 
         avg_val_loss = None
-        if curr_step == 0 or (curr_step % log_freq == 0):
+        if (curr_step == 0 or ((curr_step+1) % log_freq == 0)) and self.projectConfig.wandbConfig.log_validation:
             print(f"Doing validation set for step_num: {curr_step}")
             avg_val_loss = do_validation_set(model=self.model,
                               criterion=self.criterion,

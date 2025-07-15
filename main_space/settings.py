@@ -33,6 +33,7 @@ class WandbConfig:
         self.wandb_log_freq_model_watch = 1000  # Frequency for wandb.watch
         self.wandb_log_freq_metrics = 1  # Frequency for wandb.log() for loss, lr, etc.
         self.does_wandb_log_graph = True  # Enable to get 'model' tab in wandb
+        self.log_validation = False
 
         self.profilerConfig = self.ProfilerConfig()
         self.loggingConfig = self.LoggingConfig()
@@ -45,8 +46,10 @@ class DatasetConfig:
         self.cache_dir = os.path.join(os.getcwd(), "/dataset_creation/temp_files/cache_hf_datasets")
         self.dataset_name = "wikitext"
         self.dataset_config = "wikitext-103-v1"
-        self.num_workers_dataloader = 8
+        self.num_workers_dataloader = 1
+        print(f"NUMBER OF WORKERS FOR DATALOADER IS SET TO: {self.num_workers_dataloader}!!!!!!!!!")
         self.pin_memory_dataloader = True
+        print(f"PIN MEMORY DATALOADER IS SET TO: {self.pin_memory_dataloader}!!!!!!!!!")
         self.vocab_size_from_tokenizer = True
 
 
@@ -56,13 +59,14 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "10k_classic"
+            self.run_name = "10k_classic_heads"
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 1  # Embedding dimension / model dimension
             self.num_heads = 1  # Number of attention heads
             self.num_layers = 1  # Number of Transformer blocks
             self.ctx_len = 16  # Max sequence length for dummy data and positional embeddings
-            self.dropout_rate = 0.1
+            self.dropout_rate = 0.0
+            self.attach_aux_heads = True
 
     class DistillConfig:
 
@@ -72,10 +76,11 @@ class TrainingConfig:
 
 
     def __init__(self):
+
         self.warmup_steps = int(10)
         self.train_steps = int(50)
         self.peak_lr = 1e-1
-        self.batch_size = 4
+        self.batch_size = 1
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
         self.min_lr = 1e-2
         self.training_precision = "float32"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"

@@ -187,8 +187,11 @@ def step_log(step_num, ce_only_loss, soft_loss, loss_hidd_total, periodic_losses
             "train_loss": ce_only_loss,
             "iteration": step_num + 1,
             "learning_rate": curr_lr,
-            "avg_loss_val": avg_val_loss if avg_val_loss is not None else "Given None"
+
         }
+
+        if avg_val_loss:
+            log_data["avg_loss_val"] = avg_val_loss
 
         if soft_loss:
             log_data["soft_loss"] = soft_loss

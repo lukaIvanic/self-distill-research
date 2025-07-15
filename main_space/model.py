@@ -175,7 +175,7 @@ class FeedForward(nn.Module):
 
 
 class TransBlock(nn.Module):
-    def __init__(self, d_model, n_heads, p_dropout, ctx_size):
+    def __init__(self, d_model, n_heads, p_dropout, ctx_size, vocab_size, attach_aux_head):
         super().__init__()
 
         head_size = d_model // n_heads
@@ -185,18 +185,25 @@ class TransBlock(nn.Module):
                                               d_model=d_model,
                                               p_dropout=p_dropout,
                                               ctx_size=ctx_size)
-        # print(f"Using regular MHA")
-        # self.sa = MultiHeadAttention(n_heads=n_heads,
-        #                              head_size=head_size,
-        #                              d_model=d_model,
-        #                              p_dropout=p_dropout,
-        #                              ctx_size=ctx_size,
-        #                              tril=tril)
 
         self.ffwd = FeedForward(d_model=d_model,
                                 p_dropout=p_dropout)
         self.ln1 = nn.LayerNorm(d_model)
         self.ln2 = nn.LayerNorm(d_model)
+
+        self.aux_lm = None
+        if attach_aux_head:
+            self.aux_lm_head = LMHead(d_model, vocab_size, device="meta")
+
+
+    # def forward_w_aux(self, x):
+    #     mha_output, _ = self.sa(self.ln1(x))
+    #     x = x + mha_output
+    #     x = x + self.ffwd(self.ln2(x))
+    #
+    #     aux_logits = self.aux_lm_head(x.detach())
+    #
+    #     return x, aux_logits
 
     def forward(self, x):
         mha_output, _ = self.sa(self.ln1(x))
@@ -212,11 +219,12 @@ class TransBlock(nn.Module):
 
 
 class LMHead(nn.Module):
-    def __init__(self, d_model, vocab_size, token_embd_weights):
+    def __init__(self, d_model, vocab_size, token_embd_weights=None, device=None):
         super().__init__()
-        self.final_norm = nn.LayerNorm(d_model)  # Common to have a final LayerNorm
-        self.lm_head = nn.Linear(d_model, vocab_size)
-        self.lm_head.weight = token_embd_weights
+        self.final_norm = nn.LayerNorm(d_model, device=device)  # Common to have a final LayerNorm
+        self.lm_head = nn.Linear(d_model, vocab_size, device=device)
+        if token_embd_weights is not None:
+            self.lm_head.weight = token_embd_weights
 
     def forward(self, x):
         x = self.final_norm(x)
@@ -225,7 +233,7 @@ class LMHead(nn.Module):
 
 class MyTransformerLM(nn.Module):
     def __init__(self, vocab_size, d_model, n_heads, n_layers, ctx_size, p_dropout, needs_adapters=False,
-                 teacher_d_model=None):
+                 teacher_d_model=None, attach_aux_heads=False):
         super().__init__()
 
         self.initial_std = d_model ** -0.5
@@ -239,6 +247,8 @@ class MyTransformerLM(nn.Module):
                         n_heads=n_heads,
                         p_dropout=p_dropout,
                         ctx_size=ctx_size,
+                        vocab_size=vocab_size,
+                        attach_aux_head=attach_aux_heads,
                         ) for _ in range(n_layers)]
         )
 
@@ -248,11 +258,48 @@ class MyTransformerLM(nn.Module):
         if needs_adapters:
             self.adapters = nn.ModuleList([nn.Linear(d_model, teacher_d_model) for _ in range(n_layers)])
 
+        self._initialize_aux_heads(seed=1337)
         self.apply(self._init_default_weights)
         self._apply_scaled_residual_initialization(n_layers)
 
+    def _initialize_aux_heads(self, seed: int):
+        aux_head_generator = torch.Generator()
+        aux_head_generator.manual_seed(seed)
+        target_device = self.lm_head.lm_head.weight.device # Get target device from a real layer
+
+
+        print("Initializing auxiliary heads with a separate, fixed seed...")
+        for block in self.transformer_blocks:
+            if hasattr(block, 'aux_lm_head') and block.aux_lm_head is not None:
+                # Check if the module is a meta-module
+                if block.aux_lm_head.lm_head.weight.device.type == 'meta':
+
+                    ln_weight = torch.empty_like(block.aux_lm_head.final_norm.weight, device=target_device)
+                    ln_bias = torch.empty_like(block.aux_lm_head.final_norm.bias, device=target_device)
+                    nn.init.ones_(ln_weight)  # Standard LayerNorm init
+                    nn.init.zeros_(ln_bias)  # Standard LayerNorm init
+                    block.aux_lm_head.final_norm.weight = nn.Parameter(ln_weight)
+                    block.aux_lm_head.final_norm.bias = nn.Parameter(ln_bias)
+
+                    # Initialize the Linear layer
+                    linear_weight = torch.empty_like(block.aux_lm_head.lm_head.weight, device=target_device)
+                    linear_bias = torch.empty_like(block.aux_lm_head.lm_head.bias, device=target_device)
+                    nn.init.kaiming_uniform_(linear_weight, a=math.sqrt(5), generator=aux_head_generator)
+                    # Correctly calculate fan_in and bound for the bias initialization
+                    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(linear_weight)
+                    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+                    nn.init.uniform_(linear_bias, -bound, bound, generator=aux_head_generator)
+                    block.aux_lm_head.lm_head.weight = nn.Parameter(linear_weight)
+                    block.aux_lm_head.lm_head.bias = nn.Parameter(linear_bias)
+
+                    # Tag the PARENT module so the entire thing is skipped by the main init
+                    block.aux_lm_head._is_deterministically_initialized = True
+
+
     def _init_default_weights(self, module):
-        if isinstance(module, nn.Linear):
+        if hasattr(module, '_is_deterministically_initialized'):
+            return
+        elif isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=self.initial_std)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
@@ -261,6 +308,8 @@ class MyTransformerLM(nn.Module):
         elif isinstance(module, nn.LayerNorm):
             torch.nn.init.zeros_(module.bias)
             torch.nn.init.ones_(module.weight)
+
+
 
     def _apply_scaled_residual_initialization(self, n_layers):
         # Scaling sub-layer outputs before adding to residual, so residuals
@@ -329,22 +378,26 @@ class MyTransformerLM(nn.Module):
 
         return self.forward_lm_head_layer(x), hidd_states_per_block
 
+    def forward_w_aux(self, input_ids, step_num, device_type, amp_enabled, precision_dtype):
+
+        with autocast(device_type=device_type, enabled=amp_enabled, dtype=precision_dtype):
+            x = self.forward_embd_layer(input_ids)
+
+            aux_logits_all_blocks = []
+
+            for block in self.transformer_blocks:
+                x, block_aux_logits = block.forward_w_aux(x)
+                aux_logits_all_blocks.append(block_aux_logits)
+
+            logits = self.forward_lm_head_layer(x)
+
+
+        return logits, aux_logits_all_blocks
+
     def forward(self, input_ids, step_num, device_type, amp_enabled, precision_dtype):
 
 
-        with autocast(device_type=device_type,
-                enabled=amp_enabled,
-                      dtype=precision_dtype):
-
-            # print(f"-"*60)
-            # print(
-            #     f"get_loss_classic -> step_num({step_num}) batch_input_ids.shape: {input_ids.shape}, batch_target_ids.shape: {input_ids.shape}")
-            #
-            # print(f"get_loss_classic -> batch_input_ids (first 2 examples, 5 tokens): \n{input_ids[:2, :5]}")
-            #
-            # print(
-            #     f"get_loss_classic -> batch_input_ids sum: {input_ids.sum()}, mean: {input_ids.float().mean()}")
-
+        with autocast(device_type=device_type, enabled=amp_enabled, dtype=precision_dtype):
             x = self.forward_embd_layer(input_ids)
 
             for block in self.transformer_blocks:
@@ -352,10 +405,6 @@ class MyTransformerLM(nn.Module):
 
             logits = self.forward_lm_head_layer(x)
 
-            # print(f"get_loss_classic -> step_num({step_num}) logits.shape: {logits.shape}")
-            # print(f"get_loss_classic -> logits (first example, 2 tokens, 10 values): \n{logits[0, :2, :10]}")
-            # print(f"get_loss_classic -> logits sum: {logits.sum()}, mean: {logits.mean()}, std: {logits.std()}")
-            # print(f"-"*60)
 
         return logits
 

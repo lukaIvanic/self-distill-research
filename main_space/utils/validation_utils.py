@@ -1,3 +1,4 @@
+import time
 import torch
 from torch.amp import autocast
 from torch.profiler import record_function
@@ -58,36 +59,51 @@ def do_validation_set(model, criterion, dataloader, device):
     """
     :returns average validation loss of whole validation set
     """
+
+    print(f"Starting benchmark on whole validation set...")
+    start_time = time.time()
+
+    print(f"\t\tGetting dataset config...")
     datasetConfig = get_dataset_config()
+    curr_time = time.time()
+    print(f"\t\tGot dataset config in {curr_time-start_time:.2f} seconds.")
+
+    print(f"\t\tGetting dataloader iter...")
     dataset_iter = iter(dataloader)
+    print(f"\t\tGot dataloader iter in {time.time() - curr_time:.2f} seconds.")
+    curr_time = time.time()
+
 
     org_len = len(dataloader)
-    print(f"Len of org dataloader is {org_len}")
+    print(f"\t\tLen of org dataloader is {org_len}")
 
     max_a = 5
     total_val_loss = 0
 
+    max_iters = min(len(dataloader) + 1, max_a)
 
-
-    for i in range(min(len(dataloader) + 1, max_a)):
+    print(f"\t\tStarting loop..")
+    for i in range(max_iters):
 
         input_ids, target_ids = get_next_val_batch(dataset_iter,
                                                    device,
                                                    datasetConfig.pin_memory_dataloader)
 
         if input_ids is None or target_ids is None:
-            print(f"Breaking because None, at iter {i}, len of org dataloader is {org_len}")
+            print(f"\t\t\t\tBreaking because None, at iter {i}, len of org dataloader is {org_len}")
             break
 
         val_loss = make_val_step(model, criterion, input_ids, target_ids,device)
 
         total_val_loss += val_loss
 
-        print(f"Val at iter {i}: {val_loss}, avg_so_far: {total_val_loss/(i+1)}")
+        print(f"\t\t\t\tVal at iter {i}: {val_loss}, avg_so_far: {total_val_loss/(i+1)}")
 
+    print(f"\t\tLoop lasted for {time.time() - curr_time:.2f} seconds.")
 
-    avg_val_loss = total_val_loss / org_len
+    avg_val_loss = total_val_loss / max_iters
+    avg_val_loss = avg_val_loss.item()
 
-    print(f"Final avg_val_loss is {avg_val_loss}.")
+    print(f"\t\tRan whole benchmark in {time.time()-start_time:.2f} seconds. Returning avg val loss: {avg_val_loss}")
 
-    return avg_val_loss.item()
+    return avg_val_loss

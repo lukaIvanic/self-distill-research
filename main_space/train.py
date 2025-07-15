@@ -1,5 +1,7 @@
 import os
 
+import random
+import numpy as np
 import torch
 from torch.profiler import record_function
 
@@ -62,9 +64,15 @@ def main():
     trainingConfig = settings_utils.get_training_config()
 
     # TODO: move to TrainManage, and check for perfect globality
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    torch.use_deterministic_algorithms(True)
+    random.seed(trainingConfig.seed)
+    np.random.seed(trainingConfig.seed)
     torch.manual_seed(trainingConfig.seed)
     torch.cuda.manual_seed(trainingConfig.seed)
     torch.cuda.manual_seed_all(trainingConfig.seed)
+
 
     validate_config()
 

@@ -17,11 +17,8 @@ def set_step_lr(lr, optimizer):
         param_group['lr'] = lr
 
 
-def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_input_ids, batch_target_ids):
-    # print()
-    # print("="*60)
-    # print(f" --- STEP NUM : {step_num} --- ")
-    # print()
+def get_loss_heads(step_num, device, trainingConfig, model, criterion, batch_input_ids, batch_target_ids):
+
     with record_function("forward_pass"):
         logits = model(batch_input_ids,
                        step_num=step_num,
@@ -29,9 +26,37 @@ def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_i
                        amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
                        precision_dtype=trainingConfig.precision_dtype)
 
-    # print()
-    # print("="*60)
-    # print()
+
+
+    with record_function("loss_calculation"):
+        main_ce_loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
+        main_ce_loss = main_ce_loss.mean()
+
+
+        # aux_heads_losses = []
+        #
+        # for i in range(len(aux_logits)):
+        #     block_aux_logits = aux_logits[i]
+        #     aux_loss = criterion(block_aux_logits.view(-1, block_aux_logits.size(-1)), batch_target_ids.view(-1))
+        #     aux_loss = aux_loss.mean()
+        #     aux_heads_losses.append(aux_loss)
+        #
+        #     all_loss += aux_loss
+
+    return main_ce_loss, None
+
+def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_input_ids, batch_target_ids):
+
+
+
+    with record_function("forward_pass"):
+        logits = model(batch_input_ids,
+                       step_num=step_num,
+                       device_type=device.type,
+                       amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
+                       precision_dtype=trainingConfig.precision_dtype)
+
+
 
     with record_function("loss_calculation"):
         # The criterion must have reduction='none' to get per-token losses
@@ -299,9 +324,21 @@ def make_train_step(step_num,
 
 
         else:
-            loss, periodic_losses = get_loss_classic(actual_step_num, device, trainingConfig, model, criterion,
+            # attach_heads = trainingConfig.hyperParamConfig.attach_aux_heads
+            attach_heads = False
+
+            if attach_heads:
+                loss, _ = get_loss_heads(actual_step_num, device, trainingConfig, model, criterion,
                                                      batch_input_ids, batch_target_ids)
-            ce_only_loss = loss
+                ce_only_loss = loss
+
+            else:
+                loss, periodic_losses = get_loss_classic(actual_step_num, device, trainingConfig, model, criterion,
+                                                     batch_input_ids, batch_target_ids)
+
+                ce_only_loss = loss
+
+
 
     loss /= accumulation_steps
     with record_function("backward_pass"):
