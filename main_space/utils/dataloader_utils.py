@@ -69,6 +69,11 @@ def get_dataloader(split,):
     if not hf_split_data or len(hf_split_data) == 0:
         raise ValueError(f"Preprocessed dataset for '{split}' is empty or not found.")
 
+
+    num_samples = int(len(hf_split_data) * 0.0005)
+    hf_split_data = hf_split_data.select(range(num_samples))
+
+
     dataset = CausalLMTrainingDataset(
         hf_dataset_split=hf_split_data,
         max_seq_len=hyperParamConfig.ctx_len,

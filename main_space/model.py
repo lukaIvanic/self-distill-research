@@ -256,7 +256,7 @@ class MyTransformerLM(nn.Module):
         )
 
         self.lm_head = LMHead(d_model, vocab_size, self.token_embedding.embedding.weight)
-        self.second_ml_head = LMHead(d_model, vocab_size)
+        # self.second_ml_head = LMHead(d_model, vocab_size)
 
         self.adapters = None
         if needs_adapters:
@@ -410,12 +410,20 @@ class MyTransformerLM(nn.Module):
 
             x_detached = x.detach()
             aux_logits = "luka..."
-            aux_logits = self.second_ml_head(x_detached)
+            # aux_logits = self.second_ml_head(x_detached)
 
             logits = self.forward_lm_head_layer(x)
 
 
         return logits, aux_logits
+
+    def inference(self, input_ids):
+        x = self.forward_embd_layer(input_ids)
+
+        for block in self.transformer_blocks:
+            x, _ = block(x)
+
+        return self.forward_lm_head_layer(x)
 
     def inference_step(self, input_ids, kv_caches=None):
         x = self.forward_embd_layer(input_ids)

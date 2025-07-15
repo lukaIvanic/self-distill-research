@@ -17,7 +17,7 @@ def parse_args():
     projectName = "self-distill-research"
     entity = "luka_newbie"
 
-    alias_tag = "distilled_model_dummies:run_0hctfkyc_step_9999"
+    alias_tag = "1M_classic:run_o4aj0s35_step_11999"
     artifactName = alias_tag.split(':')[0]
     alias = alias_tag.split(':')[1]
 
@@ -46,7 +46,7 @@ def generate_greedy(
         prompt: str,
         device: torch.device,
         ctx_size: int,
-        max_new_tokens: int = 256,
+        max_new_tokens: int = 100,
         print_each: bool = False,
         never_stop: bool = True,  # doesn't stop generation on EOS token
         temperature: float = 0.8,
@@ -71,7 +71,7 @@ def generate_greedy(
 
     for step in range(max_new_tokens):
         input_for_model = torch.tensor([generated_ids[-ctx_size:]], device=device)
-        logits = model(input_for_model)  # Calling the regular forward pass
+        logits = model.inference(input_for_model)  # Calling the regular forward pass
 
         next_logits = logits[0, -1, :]
 
