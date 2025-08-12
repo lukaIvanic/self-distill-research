@@ -82,23 +82,23 @@ def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_i
         # Calculate the original single average loss
         overall_loss = per_token_losses.mean()
 
-        aux_loss = criterion(aux_logits.view(-1, aux_logits.size(-1)), batch_target_ids.view(-1))
-        aux_loss = aux_loss.mean()
+        # aux_loss = criterion(aux_logits.view(-1, aux_logits.size(-1)), batch_target_ids.view(-1))
+        # aux_loss = aux_loss.mean()
 
         # Reshape to (batch_size, sequence_length) to analyze loss by position
-        losses_by_position = per_token_losses.view(batch_input_ids.size(0), -1)
+        # losses_by_position = per_token_losses.view(batch_input_ids.size(0), -1)
 
         # Average across the batch to get a single loss value for each sequence position
-        avg_loss_per_position = losses_by_position.mean(dim=0)
+        # avg_loss_per_position = losses_by_position.mean(dim=0)
 
         # Reshape into periods of 64 and average each period
         # period = 64
         # periodic_losses = avg_loss_per_position.view(-1, period).mean(dim=1)
-        periodic_losses = None
+        # periodic_losses = None
 
-    print(f"Aux lost is: {aux_loss}, hard loss is: {overall_loss}")
+    # print(f"Aux lost is: {aux_loss}, hard loss is: {overall_loss}")
 
-    return overall_loss, periodic_losses
+    return overall_loss, 0
 
 
 def get_loss_soft(step_num, device, trainingConfig, model, teacher_model, criterion, batch_input_ids, batch_target_ids):

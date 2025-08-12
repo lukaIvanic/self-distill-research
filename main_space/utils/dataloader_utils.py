@@ -70,7 +70,7 @@ def get_dataloader(split,):
         raise ValueError(f"Preprocessed dataset for '{split}' is empty or not found.")
 
 
-    num_samples = int(len(hf_split_data) * 0.0005)
+    num_samples = min(len(hf_split_data), 2**14)
     hf_split_data = hf_split_data.select(range(num_samples))
 
 

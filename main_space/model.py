@@ -409,13 +409,13 @@ class MyTransformerLM(nn.Module):
 
 
             x_detached = x.detach()
-            aux_logits = "luka..."
+            # aux_logits = "luka..."
             # aux_logits = self.second_ml_head(x_detached)
 
             logits = self.forward_lm_head_layer(x)
 
 
-        return logits, aux_logits
+        return logits, None
 
     def inference(self, input_ids):
         x = self.forward_embd_layer(input_ids)

@@ -94,7 +94,7 @@ def main():
             print_teacher_model_params(trainManage.teacher_model)
 
         trainManage.setup_train_dataloader()
-        trainManage.setup_validation_dataloader()
+        # trainManage.setup_validation_dataloader()
         trainManage.init_train_iterator()
         trainManage.init_curr_step_counter()
 

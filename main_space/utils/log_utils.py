@@ -225,3 +225,4 @@ def step_log(step_num, ce_only_loss, soft_loss, loss_hidd_total, periodic_losses
 
         wandb.log(log_data, step=step_num + 1)
 
+

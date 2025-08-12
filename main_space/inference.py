@@ -8,7 +8,8 @@ from main_space.model import MyTransformerLM
 from tokenizers import Tokenizer
 import torch.nn.functional as F
 
-inputText = """ = Croatia = """
+# inputText = """ = Croatia = """
+inputText = """ = RITEH = """
 
 skip_loading = False
 
@@ -17,7 +18,7 @@ def parse_args():
     projectName = "self-distill-research"
     entity = "luka_newbie"
 
-    alias_tag = "1M_classic:run_o4aj0s35_step_11999"
+    alias_tag = "5M_classic:run_m09bbfx0_step_11999"
     artifactName = alias_tag.split(':')[0]
     alias = alias_tag.split(':')[1]
 
@@ -46,13 +47,13 @@ def generate_greedy(
         prompt: str,
         device: torch.device,
         ctx_size: int,
-        max_new_tokens: int = 100,
+        max_new_tokens: int = 256,
         print_each: bool = False,
         never_stop: bool = True,  # doesn't stop generation on EOS token
-        temperature: float = 0.8,
-        repetition_penalty: float = 2.0,
-        top_k: int = 10,
-        top_p: float = 0.90  # Vrijednosti blizu 1.0 su manje restriktivne, a blizu 0 su više.
+        temperature: float = 1.0,
+        repetition_penalty: float = 1.2,
+        top_k: int = 4,
+        top_p: float = 0.9  # Vrijednosti blizu 1.0 su manje restriktivne, a blizu 0 su više.
 ) -> str:
 
     if not ( 0.1 < temperature < 5.0):
