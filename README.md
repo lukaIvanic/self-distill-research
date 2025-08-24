@@ -16,7 +16,7 @@ architecture, the results are as shown:
 Logits distilling will be easy, but hidden state will probably not be too 
 successful.
 
-1. Try to reproduce baseline first, for a couple thousand steps.
+1. Try to reproduce baseline first, for a few thousand steps.
 2. Perform 70M into 30M run.
 
 
