@@ -116,7 +116,7 @@ def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_i
 def get_loss_soft(step_num, device, trainingConfig, model, teacher_model, criterion, batch_input_ids, batch_target_ids):
     with record_function("forward_pass_teacher"):
         with torch.no_grad():  # TODO: does this actually do anything?
-            teacher_logits = teacher_model(batch_input_ids,
+            teacher_logits, _ = teacher_model(batch_input_ids,
                                            step_num=step_num,
                                            device_type=device.type,
                                            amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
@@ -124,7 +124,7 @@ def get_loss_soft(step_num, device, trainingConfig, model, teacher_model, criter
                                            )
 
     with record_function("forward_pass_student"):
-        student_logits = model(batch_input_ids,
+        student_logits, _ = model(batch_input_ids,
                                step_num=step_num,
                                device_type=device.type,
                                amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
