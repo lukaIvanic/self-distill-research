@@ -33,7 +33,7 @@ class WandbConfig:
         self.wandb_log_freq_model_watch = 1000  # Frequency for wandb.watch
         self.wandb_log_freq_metrics = 200  # Frequency for wandb.log() for loss, lr, etc.
         self.does_wandb_log_graph = False  # Enable to get 'model' tab in wandb
-        self.log_validation = False
+        self.log_validation = True
 
         self.profilerConfig = self.ProfilerConfig()
         self.loggingConfig = self.LoggingConfig()
@@ -59,7 +59,7 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "30M_into_30M_reproduce_result"
+            self.run_name = "30M_6k_step_chk_pnt_into_30M_logits"
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 512  # Embedding dimension / model dimension
             self.num_heads = 16  # Number of attention heads
@@ -97,6 +97,7 @@ class TrainingConfig:
         self.initialize_precision()
         self.doesClipGradients = True
         self.distill_enabled = True
+        self.teacher_alias_tag = "30M_classic:run_e39zl7c0_step_5999"
 
         self.hyperParamConfig = self.HyperparameterConfig()
         self.distillConfig = self.DistillConfig()
@@ -169,9 +170,11 @@ class CheckpointConfig:
                                     "25M_distill_25M_hidd_2_3_4",
                                     "25M_classic_aux_test",
                                     "Generic",
-                                    "30M_into_30M_reproduce_result"]
+                                    "30M_into_30M_reproduce_result",
+                                    "70M_distill_into_30M_logits",
+                                    "30M_6k_step_chk_pnt_into_30M_logits"]
 
-        self.artifact_base_name = "30M_into_30M_reproduce_result"  # TODO: fix for consistency
+        self.artifact_base_name = "30M_6k_step_chk_pnt_into_30M_logits"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")

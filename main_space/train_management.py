@@ -413,7 +413,8 @@ class TrainManager:
 
         projectName = "self-distill-research"
         entity = "luka_newbie"
-        alias_tag = "30M_classic:run_e39zl7c0_step_11999"
+        # alias_tag = "30M_classic:run_e39zl7c0_step_11999"
+        alias_tag = self.projectConfig.trainingConfig.teacher_alias_tag
         artifactName = alias_tag.split(':')[0]
         alias = alias_tag.split(':')[1]
 
