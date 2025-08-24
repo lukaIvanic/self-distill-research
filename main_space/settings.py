@@ -59,7 +59,7 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "30M_6k_step_chk_pnt_into_30M_logits"
+            self.run_name = "30M_distill_into_30M_hidd_reproduce_results"
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 512  # Embedding dimension / model dimension
             self.num_heads = 16  # Number of attention heads
@@ -72,7 +72,7 @@ class TrainingConfig:
 
         def __init__(self):
 
-            self.distill_mode = 'logits_outputs' # Can be "logits_outputs", "hidd_distill"
+            self.distill_mode = 'hidd_distill' # Can be "logits_outputs", "hidd_distill"
 
 
     def __init__(self):
@@ -97,7 +97,7 @@ class TrainingConfig:
         self.initialize_precision()
         self.doesClipGradients = True
         self.distill_enabled = True
-        self.teacher_alias_tag = "30M_classic:run_e39zl7c0_step_5999"
+        self.teacher_alias_tag = "30M_classic:run_e39zl7c0_step_11999"
 
         self.hyperParamConfig = self.HyperparameterConfig()
         self.distillConfig = self.DistillConfig()
@@ -172,9 +172,10 @@ class CheckpointConfig:
                                     "Generic",
                                     "30M_into_30M_reproduce_result",
                                     "70M_distill_into_30M_logits",
-                                    "30M_6k_step_chk_pnt_into_30M_logits"]
+                                    "30M_6k_step_chk_pnt_into_30M_logits",
+                                    "30M_distill_into_30M_hidd_reproduce_results"]
 
-        self.artifact_base_name = "30M_6k_step_chk_pnt_into_30M_logits"  # TODO: fix for consistency
+        self.artifact_base_name = "30M_distill_into_30M_hidd_reproduce_results"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")
