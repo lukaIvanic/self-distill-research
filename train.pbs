@@ -1,7 +1,7 @@
 #!/bin/bash
-#PBS -N ctx_size_study
+#PBS -N aux_head_ablation
 #PBS -l select=1:ncpus=4:mem=10GB:ngpus=1
-#PBS -l walltime=00:02:00
+#PBS -l walltime=00:30:00
 #PBS -q gpu
 #PBS -o output.log
 #PBS -e error.log

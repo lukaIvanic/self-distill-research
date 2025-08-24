@@ -22,7 +22,7 @@ class WandbConfig:
 
     def __init__(self):
         # --- Overall Logging Control ---
-        self.is_wandb_enabled = False  # Master switch for all W&B interactions
+        self.is_wandb_enabled = True  # Master switch for all W&B interactions
         self.is_profiler_enabled = False  # Master switch for torch.profiler
         self.is_trace_handler_custom = False  # Choose dir where pytorch.profiler will save measured metrics
 
@@ -59,14 +59,14 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "Micro_tests"
+            self.run_name = "Micro_tests_aux_distill_slow"
             self.vocab_size = 5000  # Dummy vocab size
-            self.d_model = 4  # Embedding dimension / model dimension
-            self.num_heads = 1  # Number of attention heads
-            self.num_layers = 2  # Number of Transformer blocks
-            self.ctx_len = 16  # Max sequence length for dummy data and positional embeddings
-            self.dropout_rate = 0.0
-            self.attach_aux_heads = False
+            self.d_model = 256  # Embedding dimension / model dimension
+            self.num_heads = 8  # Number of attention heads
+            self.num_layers = 6  # Number of Transformer blocks
+            self.ctx_len = 512  # Max sequence length for dummy data and positional embeddings
+            self.dropout_rate = 0.1
+            self.attach_aux_heads = True
 
     class DistillConfig:
 
@@ -77,13 +77,13 @@ class TrainingConfig:
 
     def __init__(self):
 
-        self.warmup_steps = int(200)
-        self.train_steps = int(12000)
-        self.peak_lr = 1e-2
-        self.batch_size = 32
+        self.warmup_steps = int(2000)
+        self.train_steps = int(10000)
+        self.peak_lr = 1e-3
+        self.batch_size = 16
         self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
         self.min_lr = 1e-4
-        self.training_precision = "float32"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
+        self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
         self.gradient_clip_norm = 1.0
         self.seed = 42
 
@@ -167,9 +167,10 @@ class CheckpointConfig:
                                     "25M_classic",
                                     "25M_distill_30M_hidd_2_5_7",
                                     "25M_distill_25M_hidd_2_3_4",
-                                    "25M_classic_aux_test"]
+                                    "25M_classic_aux_test",
+                                    "Generic"]
 
-        self.artifact_base_name = "25M_classic_aux_test"  # TODO: fix for consistency
+        self.artifact_base_name = "Generic"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")

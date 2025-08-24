@@ -26,104 +26,6 @@ class PositionalEmbedding(nn.Module):
         return positions_embedded.repeat(batch_size, 1, 1)
 
 
-# class Head(nn.Module):
-#     def __init__(self, d_model, head_size, p_dropout, ctx_size, tril):
-#         super().__init__()
-#         self.key = nn.Linear(d_model, head_size, bias=False)
-#         self.query = nn.Linear(d_model, head_size, bias=False)
-#         self.value = nn.Linear(d_model, head_size, bias=False)
-#         self.tril = tril
-#
-#
-#
-#         self.dropout = nn.Dropout(p_dropout)
-#
-#     def forward(self, x):
-#         B, T, C = x.shape
-#         k = self.key(x)
-#         q = self.query(x)
-#         wei = q @ k.transpose(-2, -1) * k.size(-1) ** -0.5
-#         wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
-#
-#         wei = F.softmax(wei, dim=-1)
-#
-#         # attn_scores_for_distill = wei.clone()
-#
-#         wei = self.dropout(wei)
-#         v = self.value(x)
-#         out = wei @ v
-#         return out, None
-#
-#     def inference(self, x, kv_cache):
-#
-#         past_k, past_v = (None, None) if kv_cache is None else kv_cache
-#
-#
-#         B, T_query, C = x.shape
-#         q = self.query(x)
-#         k = self.key(x)
-#         v = self.value(x)
-#
-#         if past_k is not None:
-#             k = torch.cat((past_k, k), dim=-2)
-#             v = torch.cat((past_v, v), dim=-2)
-#
-#         new_head_cache = (k, v)
-#         T_key = k.size(-2)
-#
-#         wei = q @ k.transpose(-2, -1) * k.size(-1) ** -0.5
-#
-#         if T_query > 1:
-#             wei = wei.masked_fill(self.tril[:T_query, :T_key] == 0, float('-inf'))
-#
-#
-#
-#         wei = F.softmax(wei, dim=-1)
-#         wei = self.dropout(wei)
-#
-#         out = wei @ v
-#         return out, new_head_cache
-
-
-# TODO: Keeping this in comments because will later need inference function in OptimizedMHA
-# class MultiHeadAttention(nn.Module):
-#     def __init__(self, n_heads, head_size, d_model, p_dropout, ctx_size, tril):
-#         super().__init__()
-#         self.heads = nn.ModuleList([Head(d_model=d_model,
-#                                          head_size=head_size,
-#                                          p_dropout=p_dropout,
-#                                          ctx_size=ctx_size,
-#                                          tril=tril) for _ in range(n_heads)])
-#         self.output_proj_mha = nn.Linear(head_size * n_heads, d_model)
-#         self.dropout = nn.Dropout(p_dropout)  # Use global dropout
-#
-#     def forward(self, x):
-#         head_outputs = [h(x) for h in self.heads]
-#         head_individual_outputs = [data[0] for data in head_outputs]
-#         # head_individual_attn_scores = [data[1] for data in head_outputs]
-#
-#         out = torch.cat(head_individual_outputs, dim=-1)
-#         out = self.dropout(self.output_proj_mha(out))
-#
-#         # stacked_attn_scores = torch.stack(head_individual_attn_scores, dim=1)
-#
-#         return out, None
-#
-#     def inference(self, x, kv_cache_list):
-#         if kv_cache_list is None:
-#             kv_cache_list = [None] * len(self.heads)
-#
-#         head_outputs = []
-#         new_kv_cache_list = []
-#         for i, h in enumerate(self.heads):
-#             out, new_head_cache = h.inference(x, kv_cache_list[i])
-#             head_outputs.append(out)
-#             new_kv_cache_list.append(new_head_cache)
-#
-#         out = torch.cat(head_outputs, dim=-1)
-#         out = self.dropout(self.output_proj_mha(out))
-#         return out, new_kv_cache_list
-
 class OptimizedMultiHeadAttention(nn.Module):
     def __init__(self, n_heads, head_size, d_model, p_dropout, ctx_size):
         super().__init__()
@@ -408,7 +310,7 @@ class MyTransformerLM(nn.Module):
                 x, _ = block(x)
 
 
-            x_detached = x.detach()
+            # x_detached = x.detach()
             # aux_logits = "luka..."
             # aux_logits = self.second_ml_head(x_detached)
 

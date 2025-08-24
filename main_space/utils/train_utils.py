@@ -47,18 +47,31 @@ def get_loss_heads(step_num, device, trainingConfig, model, criterion, batch_inp
         aux_heads_losses = []
         aux_total_loss = 0
 
-        for i in range(len(aux_logits)):
-            block_aux_logits = aux_logits[i]
-            aux_loss = criterion(block_aux_logits.view(-1, block_aux_logits.size(-1)), batch_target_ids.view(-1))
-            aux_loss = aux_loss.mean()
-            aux_heads_losses.append(aux_loss)
+        distillation_temp = 2.0
+        with torch.no_grad():
+            teacher_probs = F.softmax(logits / distillation_temp, dim=-1)
 
-            aux_total_loss += aux_loss
+        distill_criterion = nn.KLDivLoss(reduction='batchmean')
+
+        for block_aux_logits in aux_logits:
+            student_log_probs = F.log_softmax(block_aux_logits / distillation_temp, dim=-1)
+
+            distill_loss = distill_criterion(
+                student_log_probs.view(-1, student_log_probs.size(-1)),
+                teacher_probs.view(-1, teacher_probs.size(-1))
+            ) * (distillation_temp ** 2)
 
 
 
+            aux_ce_loss = criterion(block_aux_logits.view(-1, block_aux_logits.size(-1)),
+                                         batch_target_ids.view(-1))
+            aux_ce_loss = aux_ce_loss.mean()
+            aux_heads_losses.append(aux_ce_loss)
 
-    total_loss = main_ce_loss + aux_total_loss
+            aux_total_loss += distill_loss * 0.5
+            aux_total_loss += aux_ce_loss * 0.5
+
+    total_loss = main_ce_loss + aux_total_loss * 0.001
 
     return total_loss, main_ce_loss, aux_heads_losses
 
@@ -86,19 +99,18 @@ def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_i
         # aux_loss = aux_loss.mean()
 
         # Reshape to (batch_size, sequence_length) to analyze loss by position
-        # losses_by_position = per_token_losses.view(batch_input_ids.size(0), -1)
+        losses_by_position = per_token_losses.view(batch_input_ids.size(0), -1)
 
         # Average across the batch to get a single loss value for each sequence position
-        # avg_loss_per_position = losses_by_position.mean(dim=0)
+        avg_loss_per_position = losses_by_position.mean(dim=0)
 
         # Reshape into periods of 64 and average each period
-        # period = 64
-        # periodic_losses = avg_loss_per_position.view(-1, period).mean(dim=1)
-        # periodic_losses = None
+        period = 64
+        periodic_losses = avg_loss_per_position.view(-1, period).mean(dim=1)
 
     # print(f"Aux lost is: {aux_loss}, hard loss is: {overall_loss}")
 
-    return overall_loss, 0
+    return overall_loss, periodic_losses
 
 
 def get_loss_soft(step_num, device, trainingConfig, model, teacher_model, criterion, batch_input_ids, batch_target_ids):
