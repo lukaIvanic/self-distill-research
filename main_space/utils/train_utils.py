@@ -195,8 +195,8 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
             indexes_teacher = [i for i in range(len(hidd_states_student))]
             indexes_student = [i for i in range(len(hidd_states_student))]
         else:
-            indexes_teacher = [2, 3, 4]
-            indexes_student = [2, 3, 4]
+            indexes_teacher = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+            indexes_student = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
         if step_num % 200 == 0 or step_num == 0:
             print(f"teacher-student indexes: {indexes_teacher}-{indexes_student}")
@@ -223,13 +223,28 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
 
             L_hidd_total += L_hidd
 
+
+
+
     ratio = L_hard.item() / L_hidd_total.item()
+
+    L_hidd_total_org = L_hidd_total
 
     L_hidd_total *= ratio
     alpha = 0.5
+    distill_stop_step = get_training_config().distill_stop_step
+    if step_num >= distill_stop_step:
+        cooldown_steps = get_training_config().distill_stop_cooldown_steps
+        final_alpha = 1.0
+        alpha_to_fill = final_alpha - alpha
+
+        step_after_distill_stop = min(step_num - distill_stop_step, cooldown_steps)
+
+        alpha = alpha + alpha_to_fill * (step_after_distill_stop/cooldown_steps)
+
     L = alpha * L_hard + (1 - alpha) * L_hidd_total
 
-    return L, L_hard, L_hidd_total
+    return L, L_hard, L_hidd_total_org
 
 
 def get_loss_attn_distill(step_num, model, criterion, batch_input_ids, batch_target_ids):

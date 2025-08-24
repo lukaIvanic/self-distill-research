@@ -97,8 +97,18 @@ def initialize_wandb():
         "warmup_steps": trainingConfig.warmup_steps,
         "min_lr_cosine": trainingConfig.min_lr,
         "precision": trainingConfig.training_precision,
-        "effective_precision": str(trainingConfig.precision_dtype)
+        "effective_precision": str(trainingConfig.precision_dtype),
+        "distill_enabled": trainingConfig.distill_enabled,
     }
+
+    if trainingConfig.distill_enabled:
+        config_dict.update({
+            "distill_mode": trainingConfig.distillConfig.distill_mode,
+            "distill_num_steps_to_stop_after": trainingConfig.distill_stop_step,
+            "distill_cooldown_steps_num_after_stop": trainingConfig.distill_stop_cooldown_steps,
+            "distill_teacher_alias_tag": trainingConfig.teacher_alias_tag,
+
+        })
 
     if wandbConfig.is_profiler_enabled:
 

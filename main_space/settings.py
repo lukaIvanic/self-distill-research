@@ -59,7 +59,7 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "30M_distill_into_30M_hidd_reproduce_results"
+            self.run_name = "30M_stop_distill_after_3k_steps_into_30M_hidd_custom_lr"
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 512  # Embedding dimension / model dimension
             self.num_heads = 16  # Number of attention heads
@@ -77,12 +77,12 @@ class TrainingConfig:
 
     def __init__(self):
 
-        self.warmup_steps = int(2000)
+        self.warmup_steps = int(600)
         self.train_steps = int(12000)
-        self.peak_lr = 8e-4
+        self.peak_lr = 3.6e-3
         self.batch_size = 32
-        self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear"
-        self.min_lr = 8e-5
+        self.scheduler_type = "custom"  # Options: "cosine", "inverse_sqrt", "linear", "custom"
+        self.min_lr = 1e-5
         self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
         self.gradient_clip_norm = 1.0
         self.seed = 42
@@ -97,7 +97,10 @@ class TrainingConfig:
         self.initialize_precision()
         self.doesClipGradients = True
         self.distill_enabled = True
+        self.distill_stop_step = 3000 # After this many steps, loss will be calculated classically
+        self.distill_stop_cooldown_steps = 1 # After self.distill_stop_step num of steps, perform linear cooldown, after which loss will be purely from hard targets
         self.teacher_alias_tag = "30M_classic:run_e39zl7c0_step_11999"
+
 
         self.hyperParamConfig = self.HyperparameterConfig()
         self.distillConfig = self.DistillConfig()
@@ -173,9 +176,18 @@ class CheckpointConfig:
                                     "30M_into_30M_reproduce_result",
                                     "70M_distill_into_30M_logits",
                                     "30M_6k_step_chk_pnt_into_30M_logits",
-                                    "30M_distill_into_30M_hidd_reproduce_results"]
+                                    "30M_distill_into_30M_hidd_reproduce_results",
+                                    "30M_stop_distill_after_3k_steps_into_30M_hidd",
+                                    "30M_distill_tot_6k_steps_into_30M_hidd",
+                                    "30M_distill_from_30M_hiddn",
+                                    "30M_stop_distill_after_3k_steps_into_30M_hidd_reproduce_result",
+                                    "30M_smooth_stop_distill_after_2k_steps_into_30M_hidd",
+                                    "30M_smooth_stop_distill_after_1k_steps_into_30M_hidd",
+                                    "30M_stop_distill_after_2k_steps_into_30M_hidd_higher_lr",
+                                    "30M_stop_distill_after_2k_steps_into_30M_hidd_custom_lr",
+                                    "30M_stop_distill_after_3k_steps_into_30M_hidd_custom_lr"]
 
-        self.artifact_base_name = "30M_distill_into_30M_hidd_reproduce_results"  # TODO: fix for consistency
+        self.artifact_base_name = "30M_stop_distill_after_3k_steps_into_30M_hidd_custom_lr"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")

@@ -299,6 +299,7 @@ class TrainManager:
                               dataloader=self.validation_dataloader,
                               device=self.device)
 
+
         make_train_step(
             step_num=self.current_train_step,
             model=self.model,

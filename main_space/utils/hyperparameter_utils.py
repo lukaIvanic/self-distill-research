@@ -52,6 +52,46 @@ def calculate_lr(step_num):
         lr = trainingConfig.peak_lr * math.sqrt(k / (x + k))
         return max(trainingConfig.min_lr, min(lr, trainingConfig.peak_lr))
 
+    elif trainingConfig.scheduler_type == "custom":
+        min_lr = trainingConfig.min_lr
+        peak_lr = trainingConfig.peak_lr
+        warmup_steps = trainingConfig.warmup_steps
+        total_steps = trainingConfig.train_steps
+
+
+        total_steps_after_warmup = total_steps - warmup_steps
+        curr_step_after_warmup = step_num - warmup_steps
+
+        curr_progress = (curr_step_after_warmup / total_steps_after_warmup)
+
+        if step_num < 2000:
+            return 1e-3
+        elif step_num < 2600:
+            return 5e-4
+        elif step_num < 3200:
+            return 2e-4
+        elif step_num < 3600:
+            return 1e-4
+        elif step_num < 4200:
+            return 7e-5
+        elif step_num < 5200:
+            return 3e-5
+        elif step_num < 6000:
+            return 1e-5
+        elif step_num < 7000:
+            return 8e-6
+        elif step_num < 8000:
+            return 7e-6
+        elif step_num < 9000:
+            return 5e-6
+        elif step_num < 10500:
+            return 3e-6
+        else:
+            return 1e-6
+
+
+
+
     elif trainingConfig.scheduler_type == "1M_specific_2x_train":
         first_stop = 12000
         total_steps = 24000
