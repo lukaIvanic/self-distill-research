@@ -140,15 +140,11 @@ def get_loss_soft(step_num, device, trainingConfig, model, teacher_model, criter
 
     with record_function("loss_calculation_soft_labels"):
         temperature = 2.0
-
         distillation_loss_fn = nn.KLDivLoss(reduction='none')
-
         student_logits_flat = student_logits.view(-1, student_logits.size(-1))
         teacher_logits_flat = teacher_logits.view(-1, teacher_logits.size(-1))
-
         teacher_probs = F.softmax(teacher_logits_flat / temperature, dim=-1)
         student_log_probs = F.log_softmax(student_logits_flat / temperature, dim=-1)
-
         L_soft = distillation_loss_fn(
             input=student_log_probs,
             target=teacher_probs
@@ -160,6 +156,7 @@ def get_loss_soft(step_num, device, trainingConfig, model, teacher_model, criter
             l_soft_item = L_soft.item()
             print(f"soft_loss_item: {l_soft_item}")
 
+    L_soft_org = L_soft.detach().clone()
     ratio = L_hard.item() / L_soft.item()
 
     L_soft *= ratio
@@ -167,7 +164,110 @@ def get_loss_soft(step_num, device, trainingConfig, model, teacher_model, criter
     alpha = 0.5
     L = alpha * L_hard + (1 - alpha) * L_soft
 
-    return L, L_hard, L_soft
+    return L, L_hard, L_soft_org
+
+
+def get_loss_distill_hidd_and_logits(step_num, model, teacher_model, criterion, batch_input_ids, batch_target_ids):
+    with record_function("forward_pass_teacher"):
+        with torch.no_grad():
+            teacher_logits, hidd_states_teacher = teacher_model.forward_with_out_hidd_for_distill(batch_input_ids)
+
+    with record_function("forward_pass_student"):
+        student_logits, hidd_states_student = model.forward_with_out_hidd_for_distill(batch_input_ids)
+
+    with record_function("loss_calculation_hard_labels"):
+        L_hard = criterion(student_logits.view(-1, student_logits.size(-1)), batch_target_ids.view(-1)).mean()
+
+    with record_function("loss_calculation_soft_labels"):
+        temperature = 2.0
+        distillation_loss_fn = nn.KLDivLoss(reduction='none')
+        student_logits_flat = student_logits.view(-1, student_logits.size(-1))
+        teacher_logits_flat = teacher_logits.view(-1, teacher_logits.size(-1))
+        teacher_probs = F.softmax(teacher_logits_flat / temperature, dim=-1)
+        student_log_probs = F.log_softmax(student_logits_flat / temperature, dim=-1)
+        L_logits = distillation_loss_fn(
+            input=student_log_probs,
+            target=teacher_probs
+        ).sum(dim=1).mean()
+
+        L_logits = L_logits * (temperature * temperature)  # compensating for 1/T^2 bias
+
+        if step_num % 600 == 0 or step_num == 0:
+            l_soft_item = L_logits.item()
+            print(f"soft_loss_item: {l_soft_item}")
+
+    with record_function("loss_calculation_hidd_distill"):
+
+        L_hidd_total = 0.0
+
+        override_distill = True
+
+        if len(hidd_states_student) == len(hidd_states_teacher) and not override_distill:
+            indexes_teacher = [i for i in range(len(hidd_states_student))]
+            indexes_student = [i for i in range(len(hidd_states_student))]
+        else:
+            indexes_teacher = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+            indexes_student = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        if step_num % 1000 == 0 or step_num == 0:
+            print(f"teacher-student indexes: {indexes_teacher}-{indexes_student}")
+
+
+
+        for i in range(len(indexes_student)):
+            teacher_state = hidd_states_teacher[indexes_teacher[i]]
+            student_state = hidd_states_student[indexes_student[i]]
+
+            if teacher_state.shape != student_state.shape:
+                raise ValueError(f"Teacher ({teacher_state.shape}) and student ({student_state.shape}) "
+                                 "hidden states must have the same shape for MSE distillation.")
+
+            L_hidd = F.mse_loss(
+                input=student_state,
+                target=teacher_state,
+                reduction='mean'
+            )
+
+            if step_num % 600 == 0 or step_num == 0:
+                l_hidd_item = L_hidd.item()
+                print(f"l_hidd_{i}_item: {l_hidd_item}")
+
+            L_hidd_total += L_hidd
+
+
+
+
+    ratio_hidd = L_hard.item() / L_hidd_total.item()
+    ratio_logits = L_hard.item() / L_logits.item()
+
+    L_hidd_total_org = L_hidd_total.clone()
+    L_logits_org = L_logits.clone()
+
+    L_hidd_total *= ratio_hidd
+    L_logits *= ratio_logits
+
+    alpha = get_alpha(step_num)
+
+    L_distill_combined = L_hidd_total + L_logits
+    L_distill_combined /= 2
+
+    L = alpha * L_hard + (1 - alpha) * L_distill_combined
+
+    return L, L_hard, L_hidd_total_org, L_logits_org
+
+
+def get_alpha(step_num):
+    alpha = 0.5
+    distill_stop_step = get_training_config().distill_stop_step
+    if step_num >= distill_stop_step:
+        cooldown_steps = get_training_config().distill_stop_cooldown_steps
+        final_alpha = 1.0
+        alpha_to_fill = final_alpha - alpha
+
+        step_after_distill_stop = min(step_num - distill_stop_step, cooldown_steps)
+
+        alpha = alpha + alpha_to_fill * (step_after_distill_stop / cooldown_steps)
+    return alpha
 
 
 def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input_ids, batch_target_ids):
@@ -228,7 +328,7 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
 
     ratio = L_hard.item() / L_hidd_total.item()
 
-    L_hidd_total_org = L_hidd_total
+    L_hidd_total_org = L_hidd_total.clone()
 
     L_hidd_total *= ratio
     alpha = 0.5
@@ -262,31 +362,6 @@ def get_loss_attn_distill(step_num, model, criterion, batch_input_ids, batch_tar
         teacher_attns = attns_per_block[distillConfig.teacher_index]
         student_attns = attns_per_block[distillConfig.student_index]
 
-        B, H, T_q, T_k = teacher_attns.shape
-
-        student_attns_logged = (student_attns + 1e-8).log()
-        teacher_attns_logged = (teacher_attns + 1e-8).log()
-
-        student_probs_for_kl = student_attns.view(B * H * T_q, T_k)
-        student_log_probs_for_kl = student_attns_logged.view(B * H * T_q, T_k)
-
-        teacher_probs_for_kl = teacher_attns.view(B * H * T_q, T_k)
-        teacher_log_probs_for_kl = teacher_attns_logged.view(B * H * T_q, T_k)
-
-        kl_loss = F.kl_div(
-            input=student_log_probs_for_kl,
-            target=teacher_log_probs_for_kl,
-            reduction='batchmean',
-            log_target=True
-        )
-
-        kl_item = kl_loss.item()
-        print(f"kl_item: {kl_item}")
-
-        step_distill_alpha = calculate_distill_alpha(step_num)
-        total_loss = ce_loss + step_distill_alpha * kl_loss
-
-    return total_loss, ce_loss
 
 
 def clip_gradients(model, optimizer):
@@ -372,9 +447,24 @@ def make_train_step(step_num,
                                                                             criterion,
                                                                             batch_input_ids,
                                                                             batch_target_ids)
+            elif trainingConfig.distillConfig.distill_mode == 'hidd_and_logits_distill':
+                loss, ce_only_loss, loss_hidd_total, loss_soft = get_loss_distill_hidd_and_logits(actual_step_num,
+                                                                            model,
+                                                                            teacher_model,
+                                                                            criterion,
+                                                                            batch_input_ids,
+                                                                            batch_target_ids)
+            elif trainingConfig.distillConfig.distill_mode == 'attn_distill':
+                loss, ce_only_loss, loss_hidd_total, loss_soft = get_loss_distill_hidd_and_logits(actual_step_num,
+                                                                            model,
+                                                                            teacher_model,
+                                                                            criterion,
+                                                                            batch_input_ids,
+                                                                            batch_target_ids)
+
             else:
                 raise BrokenPipeError(
-                    f"distill_mode should be 'logits_output', but was {trainingConfig.distillConfig.distill_mode}.")
+                    f"distill_mode should be 'logits_output' | 'hidd_distill' | 'hidd_and_logits_distill', but was {trainingConfig.distillConfig.distill_mode}.")
 
 
 

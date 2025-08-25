@@ -59,30 +59,30 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "30M_stop_distill_after_3k_steps_into_30M_hidd_custom_lr"
+            self.run_name = "30M_distill_into_30M_hidd_6k_customizations"
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 512  # Embedding dimension / model dimension
             self.num_heads = 16  # Number of attention heads
             self.num_layers = 10  # Number of Transformer blocks
             self.ctx_len = 1024  # Max sequence length for dummy data and positional embeddings
-            self.dropout_rate = 0.1
+            self.dropout_rate = 0.0
             self.attach_aux_heads = False
 
     class DistillConfig:
 
         def __init__(self):
 
-            self.distill_mode = 'hidd_distill' # Can be "logits_outputs", "hidd_distill"
+            self.distill_mode = 'hidd_distill' # Can be "logits_outputs", "hidd_distill", "hidd_and_logits_distill", "attn_distill"
 
 
     def __init__(self):
 
-        self.warmup_steps = int(600)
-        self.train_steps = int(12000)
-        self.peak_lr = 3.6e-3
+        self.warmup_steps = int(800)
+        self.train_steps = int(6000)
+        self.peak_lr = 2e-3
         self.batch_size = 32
         self.scheduler_type = "custom"  # Options: "cosine", "inverse_sqrt", "linear", "custom"
-        self.min_lr = 1e-5
+        self.min_lr = 8e-5
         self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
         self.gradient_clip_norm = 1.0
         self.seed = 42
@@ -185,9 +185,15 @@ class CheckpointConfig:
                                     "30M_smooth_stop_distill_after_1k_steps_into_30M_hidd",
                                     "30M_stop_distill_after_2k_steps_into_30M_hidd_higher_lr",
                                     "30M_stop_distill_after_2k_steps_into_30M_hidd_custom_lr",
-                                    "30M_stop_distill_after_3k_steps_into_30M_hidd_custom_lr"]
+                                    "30M_stop_distill_after_3k_steps_into_30M_hidd_custom_lr",
+                                    "30M_distill_into_30M_hiddn_and_logits",
+                                    "30M_distill_into_30M__logits",
+                                    "30M_distill_into_30M_logits_6k",
+                                    "30M_distill_into_30M_logits_6k_adamW",
+                                    "30M_distill_into_30M_hidd_6k_adamW",
+                                    "30M_distill_into_30M_hidd_6k_customizations"]
 
-        self.artifact_base_name = "30M_stop_distill_after_3k_steps_into_30M_hidd_custom_lr"  # TODO: fix for consistency
+        self.artifact_base_name = "30M_distill_into_30M_hidd_6k_customizations"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")

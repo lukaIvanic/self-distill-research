@@ -65,3 +65,6 @@ End of day thoughts and guidance for tomorrow: It seems I was technically able t
 It seems that no matter the learning rate regime, the newly trained model can't converge quicker than about 4.5k steps (as opposed to the 12k total steps it took to train the original model). Even though very rapid progress happens very early in training, further hidd state distillasion seems to have diminishing returns, and in fact negligible impact after a point in training. In retrospect, this might be because only the outputs of the hidden layers are distilled, while completely ignoring the final classification output and also the output of the embedding layer. This leads us to believe that the embedding layer simply takes time to catch up with the knowledge of inner transformer blocks. 
 
 1. A quick ablation, where the embedding layers of a teacher model are reinitialized, to see how the training looks coming back to convergence, and more precisely to the old best validation loss value. Compare this to the training curves after distillation speedup saturates
+2. Try removing dropout, and or handling it better for distillation
+3. Batch size exploration
+4. Repeat last run in wandb with the reduced weight decay, and dropout, etc., and try to train classically with those or similar values

@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -N pretraining_cost_optimization
-#PBS -l select=1:ncpus=1:mem=10GB:ngpus=1
+#PBS -l select=1:ncpus=8:mem=10GB:ngpus=1
 #PBS -l walltime=00:45:00
 #PBS -q login-gpu
 #PBS -o output.log
