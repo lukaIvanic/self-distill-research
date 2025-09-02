@@ -142,7 +142,7 @@ class TrainManager:
             raise BrokenPipeError("trainManage.setup_optimizer was called, but self.model wasn't initialized yet. "
                                   "Please call trainManage.setup_model first.")
 
-        self.optimizer = optim.AdamW(self.model.parameters(), betas=(self.projectConfig.trainingConfig.beta1, self.projectConfig.trainingConfig.beta2), lr=self.projectConfig.trainingConfig.peak_lr, weight_decay=0.01)  # TODO: make weight_decay a hyperparam
+        self.optimizer = optim.AdamW(self.model.parameters(), betas=(self.projectConfig.trainingConfig.beta1, self.projectConfig.trainingConfig.beta2), lr=self.projectConfig.trainingConfig.peak_lr, weight_decay=self.projectConfig.trainingConfig.weight_decay)  # TODO: make weight_decay a hyperparam
 
     def setup_criterion(self):
         # For LM, CrossEntropyLoss ignores index -100 by default, which our DataLoader uses for label padding.

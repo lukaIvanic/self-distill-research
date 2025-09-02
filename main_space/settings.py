@@ -59,7 +59,7 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "30M_distill_into_30M_hidd_6k_non_regularized_loss"
+            self.run_name = "30M_distill_into_30M_logits_6k_full_adaptable_lr"
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 512  # Embedding dimension / model dimension
             self.num_heads = 16  # Number of attention heads
@@ -72,23 +72,25 @@ class TrainingConfig:
 
         def __init__(self):
 
-            self.distill_mode = 'hidd_distill' # Can be "logits_outputs", "hidd_distill", "hidd_and_logits_distill", "attn_distill"
+            self.distill_mode = 'logits_outputs' # Can be "logits_outputs", "hidd_distill", "hidd_and_logits_distill", "attn_distill"
 
 
     def __init__(self):
 
         self.warmup_steps = int(800)
         self.train_steps = int(6000)
-        self.peak_lr = 2e-3
+        self.peak_lr = 8e-4
         self.batch_size = 32
-        self.scheduler_type = "custom"  # Options: "cosine", "inverse_sqrt", "linear", "custom"
+        self.scheduler_type = "adaptable"  # Options: "cosine", "inverse_sqrt", "linear", "custom", "adaptable"
         self.min_lr = 8e-5
+        self.max_hidd_loss = 8
         self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
         self.gradient_clip_norm = 1.0
         self.seed = 42
 
         self.beta1 = 0.9  # default 0.9
-        self.beta2 = 0.95  # default 0.999, others 0.95
+        self.beta2 = 0.999  # default 0.999, others 0.95
+        self.weight_decay = 0.01
 
 
         self.experimental_steps = int(150)
@@ -202,14 +204,19 @@ class CheckpointConfig:
                                     "30M_classic_optimizer_and_dropout",
                                     "nodrop_30M_distill_into_30M_hidd_6k_customizations",
                                     "baseline_30M_distill_into_30M_hidd_6k_customizations",
-                                    "30M_distill_into_30M_hidd_6k_non_regularized_loss"]
+                                    "30M_distill_into_30M_hidd_6k_non_regularized_loss",
+                                    "30M_distill_into_30M_hidd_6k_adaptable_lr",
+                                    "30M_distill_into_30M_hidd_6k_adaptable_lr_sqrt",
+                                    "30M_distill_into_30M_hidd_6k_adaptable_lr_hard_independent",
+                                    "30M_distill_into_30M_hidd_6k_full_adaptable_lr",
+                                    "30M_distill_into_30M_logits_6k_full_adaptable_lr"]
 
-        self.artifact_base_name = "30M_distill_into_30M_hidd_6k_non_regularized_loss"  # TODO: fix for consistency
+        self.artifact_base_name = "30M_distill_into_30M_logits_6k_full_adaptable_lr"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")
 
-        self.checkpoint_frequency = 3000
+        self.checkpoint_frequency = 11999
 
         self.attempt_load_checkpoint_if_exists= False
         self.strict_state_dict_loading = True

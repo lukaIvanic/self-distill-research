@@ -323,27 +323,56 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
 
             L_hidd_total += L_hidd
 
-    L, L_hidd_total_org = loss_strategy(L_hard, L_hidd_total, step_num)
+    L, L_hidd_total_org, hidd_loss_ratio = loss_strategy(L_hard, L_hidd_total, step_num)
 
-    return L, L_hard, L_hidd_total_org
+    return L, L_hard, L_hidd_total_org, hidd_loss_ratio
+
+def get_hidd_loss_lr_ratio(L_hidd_scalar):
+    max_hidd_loss = get_training_config().max_hidd_loss
+    L_hidd_scalar = min(L_hidd_scalar, max_hidd_loss)
+
+    min_hidd_loss = 0.01
+
+    if L_hidd_scalar < min_hidd_loss:
+        return 0.0
+
+    linear_constant = 3
+
+    progress = (L_hidd_scalar-min_hidd_loss)/(max_hidd_loss-min_hidd_loss)
+
+    ratio = linear_constant * progress
+
+    min_ratio = 0.2
+
+    return max(ratio, min_ratio)
 
 
 def loss_strategy(L_hard, L_hidd_total, step_num):
-    ratio = L_hard.item() / L_hidd_total.item()
+
     L_hidd_total_org = L_hidd_total.clone()
-    L_hidd_total *= ratio
-    alpha = 0.5
+
+    L_hidd_item  = L_hidd_total.item()
+    L_hard_item = L_hard.item()
+
+    equalizer = L_hard_item / L_hidd_item
+    soft_to_hard_ratio = get_hidd_loss_lr_ratio(L_hidd_item)
+
+    L_hidd_total *= equalizer # equalizes vectors to have same length
+    L_hidd_total *= soft_to_hard_ratio # applies ratio how much should distillation be involved
+
+    distill_utilization = 1.0
     distill_stop_step = get_training_config().distill_stop_step
     if step_num >= distill_stop_step:
         cooldown_steps = get_training_config().distill_stop_cooldown_steps
-        final_alpha = 1.0
-        alpha_to_fill = final_alpha - alpha
+        final_utiliz = 0
+        utiliz_diff = distill_utilization - final_utiliz
 
         step_after_distill_stop = min(step_num - distill_stop_step, cooldown_steps)
 
-        alpha = alpha + alpha_to_fill * (step_after_distill_stop / cooldown_steps)
-    L = alpha * L_hard + (1 - alpha) * L_hidd_total
-    return L, L_hidd_total_org
+        distill_utilization = final_utiliz + utiliz_diff * (1 - step_after_distill_stop / cooldown_steps)
+
+    L = L_hard + distill_utilization * L_hidd_total
+    return L, L_hidd_total_org, soft_to_hard_ratio
 
 
 def get_loss_attn_distill(step_num, model, criterion, batch_input_ids, batch_target_ids):
@@ -391,8 +420,18 @@ logging_loss_accumulator = {
     'ce_only_loss': 0.0,
     'loss_soft': 0.0,
     'loss_hidd_total': 0.0,
+    'hidd_loss_ratio': 0.0,
 }
 
+
+def adaptable_lr(loss_item, actual_step_num, optimizer):
+    if get_training_config().scheduler_type != "adaptable":
+        return None
+
+    current_actual_lr = calculate_lr(step_num=actual_step_num, loss=loss_item)
+    set_step_lr(current_actual_lr, optimizer)
+
+    return current_actual_lr
 
 def make_train_step(step_num,
                     model,
@@ -412,8 +451,9 @@ def make_train_step(step_num,
     accumulation_steps = 1
     actual_step_num = step_num // accumulation_steps
 
-    current_actual_lr = calculate_lr(step_num=actual_step_num)
-    set_step_lr(current_actual_lr, optimizer)
+    if get_training_config().scheduler_type != "adaptable":
+        current_actual_lr = calculate_lr(step_num=actual_step_num)
+        set_step_lr(current_actual_lr, optimizer)
 
     model.train()
 
@@ -421,6 +461,7 @@ def make_train_step(step_num,
     periodic_losses = None
     loss_soft = None
     loss_hidd_total = None
+    hidd_loss_ratio = None
 
     with record_function("optimizer_zero_grad"):
         optimizer.zero_grad(set_to_none=True)
@@ -440,7 +481,7 @@ def make_train_step(step_num,
                                                               batch_target_ids)
 
             elif trainingConfig.distillConfig.distill_mode == 'hidd_distill':
-                loss, ce_only_loss, loss_hidd_total = get_loss_hidd_distill(actual_step_num,
+                loss, ce_only_loss, loss_hidd_total, hidd_loss_ratio = get_loss_hidd_distill(actual_step_num,
                                                                             model,
                                                                             teacher_model,
                                                                             criterion,
@@ -480,11 +521,13 @@ def make_train_step(step_num,
 
                 ce_only_loss = loss
 
-
+    if get_training_config().scheduler_type == "adaptable":
+        current_actual_lr = adaptable_lr(ce_only_loss.item(), actual_step_num, optimizer)
 
     loss /= accumulation_steps
     with record_function("backward_pass"):
         loss.backward()
+
 
 
     check_and_print_grad_nan_inf(model, step_num)
@@ -494,6 +537,8 @@ def make_train_step(step_num,
         logging_loss_accumulator["loss_soft"] += (loss_soft / accumulation_steps).item()
     if loss_hidd_total:
         logging_loss_accumulator["loss_hidd_total"] += (loss_hidd_total / accumulation_steps).item()
+    if hidd_loss_ratio:
+        logging_loss_accumulator["hidd_loss_ratio"] += hidd_loss_ratio/accumulation_steps
 
     if (step_num + 1) % accumulation_steps == 0:
         with record_function("gradient_clipping"):
@@ -506,6 +551,7 @@ def make_train_step(step_num,
                  ce_only_loss=logging_loss_accumulator["ce_only_loss"],
                  soft_loss=logging_loss_accumulator["loss_soft"],
                  loss_hidd_total=logging_loss_accumulator["loss_hidd_total"],
+                 hidd_loss_ratio=logging_loss_accumulator["hidd_loss_ratio"],
                  periodic_losses=periodic_losses,
                  curr_lr=current_actual_lr,
                  wandb=wandb,
@@ -519,3 +565,4 @@ def make_train_step(step_num,
         logging_loss_accumulator["ce_only_loss"] = 0.0
         logging_loss_accumulator["loss_soft"] = 0.0
         logging_loss_accumulator["loss_hidd_total"] = 0.0
+        logging_loss_accumulator["hidd_loss_ratio"] = 0.0

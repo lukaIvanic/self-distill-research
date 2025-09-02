@@ -181,7 +181,7 @@ def log_validation_step(step_num, curr_avg_ce_loss, curr_avg_periodic_losses, de
     if profiler_obj:
         profiler_obj.step()
 
-def step_log(step_num, ce_only_loss, soft_loss, loss_hidd_total, periodic_losses, curr_lr, device, wandb, wandb_run_obj, current_actual_lr,
+def step_log(step_num, ce_only_loss, soft_loss, loss_hidd_total, hidd_loss_ratio, periodic_losses, curr_lr, device, wandb, wandb_run_obj, current_actual_lr,
              avg_val_loss, total_ops, aux_head_losses):
 
     wandbConfig = get_wandb_config()
@@ -222,6 +222,9 @@ def step_log(step_num, ce_only_loss, soft_loss, loss_hidd_total, periodic_losses
 
         if loss_hidd_total:
             log_data["loss_hidd_total"] = loss_hidd_total
+
+        if hidd_loss_ratio != 0.0:
+            log_data["hidd_loss_ratio"] = hidd_loss_ratio
 
         if periodic_losses is not None:
             period_size = 64

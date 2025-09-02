@@ -7,7 +7,7 @@ def calculate_distill_alpha(config, step_num):
 
     return get_distill_config().distill_alpha * (step_num / get_training_config().train_steps)
 
-def calculate_lr(step_num):
+def calculate_lr(step_num, loss=None):
     """
     Calculates learning rate with linear warmup and cosine or inverse square root decay.
 
@@ -89,7 +89,30 @@ def calculate_lr(step_num):
         else:
             return 1e-6
 
+    elif trainingConfig.scheduler_type == "adaptable":
 
+        if loss is None:
+            raise BrokenPipeError(f"Loss parameter passed to function hyperparameter_utils.calculate_lr cannot be None when using adaptable learnig rate scheduler.")
+
+        cos_base = (math.cos((x * math.pi) / max_x) + 1) / 2.0
+        cosine_lr = cos_base * (trainingConfig.peak_lr - trainingConfig.min_lr) + trainingConfig.min_lr
+
+        target_loss = 2.6
+        worst_loss = 3
+
+
+        loss = min(worst_loss, loss)
+
+        progress = 1 - (worst_loss - loss) / (worst_loss - target_loss)
+
+        max_scale = 2.0
+        min_scale = 0.02
+
+        scale = min_scale + (max_scale - min_scale) * progress
+
+
+
+        return cosine_lr * scale
 
 
     elif trainingConfig.scheduler_type == "1M_specific_2x_train":
