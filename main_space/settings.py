@@ -59,7 +59,7 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "30M_distill_into_30M_hidd_6k_customizations"
+            self.run_name = "30M_distill_into_30M_hidd_6k_non_regularized_loss"
             self.vocab_size = 5000  # Dummy vocab size
             self.d_model = 512  # Embedding dimension / model dimension
             self.num_heads = 16  # Number of attention heads
@@ -87,6 +87,9 @@ class TrainingConfig:
         self.gradient_clip_norm = 1.0
         self.seed = 42
 
+        self.beta1 = 0.9  # default 0.9
+        self.beta2 = 0.95  # default 0.999, others 0.95
+
 
         self.experimental_steps = int(150)
         self.experimental_stop = False
@@ -99,7 +102,7 @@ class TrainingConfig:
         self.distill_enabled = True
         self.distill_stop_step = 3000 # After this many steps, loss will be calculated classically
         self.distill_stop_cooldown_steps = 1 # After self.distill_stop_step num of steps, perform linear cooldown, after which loss will be purely from hard targets
-        self.teacher_alias_tag = "30M_classic:run_e39zl7c0_step_11999"
+        self.teacher_alias_tag = "30M_classic:run_lc5nraox_step_11999"
 
 
         self.hyperParamConfig = self.HyperparameterConfig()
@@ -191,9 +194,17 @@ class CheckpointConfig:
                                     "30M_distill_into_30M_logits_6k",
                                     "30M_distill_into_30M_logits_6k_adamW",
                                     "30M_distill_into_30M_hidd_6k_adamW",
-                                    "30M_distill_into_30M_hidd_6k_customizations"]
+                                    "30M_distill_into_30M_hidd_6k_customizations",
+                                    "30M_distill_into_30M_logits_6k_customizations",
+                                    "70M_distill_into_30M_logits_6k_customizations",
+                                    "30M_classic_optimizer",
+                                    "30M_classic_dropout",
+                                    "30M_classic_optimizer_and_dropout",
+                                    "nodrop_30M_distill_into_30M_hidd_6k_customizations",
+                                    "baseline_30M_distill_into_30M_hidd_6k_customizations",
+                                    "30M_distill_into_30M_hidd_6k_non_regularized_loss"]
 
-        self.artifact_base_name = "30M_distill_into_30M_hidd_6k_customizations"  # TODO: fix for consistency
+        self.artifact_base_name = "30M_distill_into_30M_hidd_6k_non_regularized_loss"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")

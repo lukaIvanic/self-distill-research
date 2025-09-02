@@ -323,13 +323,14 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
 
             L_hidd_total += L_hidd
 
+    L, L_hidd_total_org = loss_strategy(L_hard, L_hidd_total, step_num)
+
+    return L, L_hard, L_hidd_total_org
 
 
-
+def loss_strategy(L_hard, L_hidd_total, step_num):
     ratio = L_hard.item() / L_hidd_total.item()
-
     L_hidd_total_org = L_hidd_total.clone()
-
     L_hidd_total *= ratio
     alpha = 0.5
     distill_stop_step = get_training_config().distill_stop_step
@@ -340,11 +341,9 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
 
         step_after_distill_stop = min(step_num - distill_stop_step, cooldown_steps)
 
-        alpha = alpha + alpha_to_fill * (step_after_distill_stop/cooldown_steps)
-
+        alpha = alpha + alpha_to_fill * (step_after_distill_stop / cooldown_steps)
     L = alpha * L_hard + (1 - alpha) * L_hidd_total
-
-    return L, L_hard, L_hidd_total_org
+    return L, L_hidd_total_org
 
 
 def get_loss_attn_distill(step_num, model, criterion, batch_input_ids, batch_target_ids):

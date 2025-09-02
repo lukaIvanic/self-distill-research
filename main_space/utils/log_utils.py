@@ -99,6 +99,8 @@ def initialize_wandb():
         "precision": trainingConfig.training_precision,
         "effective_precision": str(trainingConfig.precision_dtype),
         "distill_enabled": trainingConfig.distill_enabled,
+        "adamW_beta1": trainingConfig.beta1,
+        "adamW_beta2": trainingConfig.beta2,
     }
 
     if trainingConfig.distill_enabled:
