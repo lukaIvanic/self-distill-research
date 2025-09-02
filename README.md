@@ -1,5 +1,3 @@
-## Current goals
-
 ## Distill different teacher comparison study
 Comparison of using different teachers on the same 30M param architecture, to see
 how to they differ in their earlier training curves. They will probably
@@ -29,9 +27,6 @@ Conclusion: doesn't perform better than having the trained 30M as a teacher. Str
 ### 30M intermediate checkpoint distill into 30M 
 Using a not fully trained checkpoint of the 30M model, distill into freshly
 initialized model.
-
-1. Distill from checkpoint
-2. Save graph
 
 ![30M 6k steps checkpoint distills into 30M](readme_files/30M_6k_checkpoint_distill_into_30M_logits.png)
 
