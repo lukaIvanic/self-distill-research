@@ -65,3 +65,7 @@ Experiment shows that when naively attaching new layers, the model is highly inc
 ![Weight values across training steps of the fourth layer (previously trained)](readme_files/layer_4_weights.png)
 ![Weight values across training steps of the sixth layer (attached and post-trained)](readme_files/block_6_weights.png)
 
+However, the experiment shows that even with the highly suppressed weight values of the newly added layers, the setup does indeed represent a "middle ground" between the full network performance trained from scratch, and the half network performance trained from scratch:
+
+![Performance comparison](readme_files/performance_between_fully_trained.png)
+
