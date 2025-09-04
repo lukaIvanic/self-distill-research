@@ -135,11 +135,12 @@ class LMHead(nn.Module):
 
 class MyTransformerLM(nn.Module):
     def __init__(self, vocab_size, d_model, n_heads, n_layers, ctx_size, p_dropout, needs_adapters=False,
-                 teacher_d_model=None, attach_aux_heads=False):
+                 teacher_d_model=None, attach_aux_heads=False, half_index=None):
         super().__init__()
 
         self.d_model = d_model
         self.n_layers = n_layers
+        self.half_index = half_index
 
         self.initial_std = d_model ** -0.5
 
@@ -157,8 +158,8 @@ class MyTransformerLM(nn.Module):
                         ) for _ in range(n_layers)]
         )
 
-        self.lm_head = LMHead(d_model, vocab_size, self.token_embedding.embedding.weight)
-        # self.second_ml_head = LMHead(d_model, vocab_size)
+        self.lm_head = LMHead(d_model, vocab_size, None) # Removed typing (de)embedding weights because will be freezing weights with half training.
+        # self.lm_head = LMHead(d_model, vocab_size, self.token_embedding.embedding.weight)
 
         self.adapters = None
         if needs_adapters:
@@ -284,35 +285,88 @@ class MyTransformerLM(nn.Module):
 
         return self.forward_lm_head_layer(x), hidd_states_per_block
 
-    def forward_w_aux(self, input_ids, step_num, device_type, amp_enabled, precision_dtype):
+    def forward_w_aux(self, input_ids, step_num, device_type, amp_enabled, precision_dtype, only_first_half):
 
         with autocast(device_type=device_type, enabled=amp_enabled, dtype=precision_dtype):
             x = self.forward_embd_layer(input_ids)
 
             aux_logits_all_blocks = []
 
-            for block in self.transformer_blocks:
+            for i, block in enumerate(self.transformer_blocks):
                 x, block_aux_logits = block.forward_w_aux(x)
                 aux_logits_all_blocks.append(block_aux_logits)
+                if only_first_half is not None and only_first_half == True:
+                    if self.half_index is None:
+                        raise BrokenPipeError(
+                            f"Forward was called in MyTransformerLM model, with only_first_half=True, but self.half_index was not set during initialization. Please make sure to set half_index during model initialization.")
+
+                    if i == self.half_index:
+                        if step_num % 200:
+                            print(f"Stopped activations flow after half_index {self.half_index}.")
+                        break  # only first half, so the rest of the transformer blocks stay unused
+
+                if i == len(self.transformer_blocks) - 1:
+                    print(f"Activations went through the whole model.")
 
             logits = self.forward_lm_head_layer(x)
 
 
         return logits, aux_logits_all_blocks
 
-    def forward(self, input_ids, step_num, device_type, amp_enabled, precision_dtype):
+    def freeze_or_unfreeze_first_half_params(self, requires_grad=False):
+        """
+        Freezes the parameters of the model up to and including the transformer block
+        at `self.half_index`. This includes the token and positional embeddings, and the
+        initial transformer blocks.
+
+        A critical side effect of this function is that if the weights of the token embedding
+        are tied with the final language model head (`lm_head`), freezing the token embedding
+        will also freeze the weights of the `lm_head`. This is because they share the same
+        underlying parameter tensor. If this is not the desired behavior, you should disable
+        weight tying before calling this function.
+        """
+        if self.half_index is None or not (0 <= self.half_index < self.n_layers):
+            raise BrokenPipeError(f"Warning: `half_index` is not set or is out of bounds. "
+                                  f"No parameters will be frozen. half_index={self.half_index}, n_layers={self.n_layers}")
+
+        suffix = "Freezing" if not requires_grad else "Unfreezing"
+
+        print(f"{suffix} parameters up to and including transformer block {self.half_index}.")
+
+        # Freeze token and positional embeddings
+        print(f"{suffix} token and positional embeddings.")
+        for param in self.token_embedding.parameters():
+            param.requires_grad = requires_grad
+        for param in self.positional_embedding.parameters():
+            param.requires_grad = requires_grad
+
+        # Freeze the first `half_index + 1` transformer blocks
+        for i in range(self.half_index + 1):
+            print(f"{suffix} transformer block {i}.")
+            for param in self.transformer_blocks[i].parameters():
+                param.requires_grad = requires_grad
+
+    def forward(self, input_ids, step_num, device_type, amp_enabled, precision_dtype, only_first_half=False):
 
 
         with autocast(device_type=device_type, enabled=amp_enabled, dtype=precision_dtype):
             x = self.forward_embd_layer(input_ids)
 
-            for block in self.transformer_blocks:
+            for i, block in enumerate(self.transformer_blocks):
                 x, _ = block(x)
+                if only_first_half is not None and only_first_half == True:
+                    if self.half_index is None:
+                        raise BrokenPipeError(f"Forward was called in MyTransformerLM model, with only_first_half=True, but self.half_index was not set during initialization. Please make sure to set half_index during model initialization.")
 
+                    if i == self.half_index:
+                        if step_num % 200 == 0:
+                            print(f"Stopped activations flow after half_index {self.half_index}.")
+                        break # only first half, so the rest of the transformer blocks stay unused
 
-            # x_detached = x.detach()
-            # aux_logits = "luka..."
-            # aux_logits = self.second_ml_head(x_detached)
+                if step_num % 200 == 0:
+                    if i == len(self.transformer_blocks) - 1:
+                        print(f"Activations went through the whole model.")
+
 
             logits = self.forward_lm_head_layer(x)
 

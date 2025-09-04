@@ -51,6 +51,8 @@ class TrainManager:
         self.input_ids = None
         self.target_ids = None
 
+        self.only_first_half = True if self.projectConfig.trainingConfig.half_by_half_training else None # None | False | True, Is None if half by half training is disabled. Is False if currently we are in the first half of training. Is True if we are in the second half of training.
+
         self.wandb_run = None
         self.profiler_or_null_context = None
 
@@ -77,7 +79,12 @@ class TrainManager:
             raise BrokenPipeError("trainManage.setup_model was called, but self.device wasn't initialized yet. "
                                   "Please call trainManage.setup_device first.")
 
-        hyperParamConfig = self.projectConfig.trainingConfig.hyperParamConfig
+        trainingConfig = self.projectConfig.trainingConfig
+        hyperParamConfig = trainingConfig.hyperParamConfig
+
+        half_index = None
+        if trainingConfig.half_by_half_training == True:
+            half_index = trainingConfig.half_index
 
         # left explicit passing of params for clarity
         self.model = MyTransformerLM(
@@ -87,7 +94,8 @@ class TrainManager:
             n_layers=hyperParamConfig.num_layers,
             ctx_size=hyperParamConfig.ctx_len,
             p_dropout=hyperParamConfig.dropout_rate,
-            attach_aux_heads=hyperParamConfig.attach_aux_heads
+            attach_aux_heads=hyperParamConfig.attach_aux_heads,
+            half_index=half_index,
             # needs_adapters=True,
             # teacher_d_model=512
         )
@@ -291,13 +299,26 @@ class TrainManager:
         curr_step = self.current_train_step
         log_freq = self.projectConfig.wandbConfig.wandb_log_freq_metrics
 
+        trainingConfig = self.projectConfig.trainingConfig
+
+        if trainingConfig.half_by_half_training:
+            if trainingConfig.separation_step == curr_step:
+                self.model.freeze_or_unfreeze_first_half_params(requires_grad=False)
+                self.only_first_half = False
+            elif trainingConfig.continue_full_step == curr_step:
+                self.model.freeze_or_unfreeze_first_half_params(requires_grad=True)
+
         avg_val_loss = None
         if (((curr_step+1) % log_freq == 0)) and self.projectConfig.wandbConfig.log_validation:
             print(f"Doing validation set for step_num: {curr_step}")
             avg_val_loss = do_validation_set(model=self.model,
                               criterion=self.criterion,
                               dataloader=self.validation_dataloader,
-                              device=self.device)
+                              device=self.device,
+                            only_first_half = self.only_first_half)
+
+
+
 
 
         make_train_step(
@@ -311,7 +332,8 @@ class TrainManager:
             batch_target_ids=self.target_ids,
             wandb_run_obj=self.wandb_run,
             avg_val_loss=avg_val_loss,
-            total_ops=self.get_total_ops_rough(curr_step+1)
+            total_ops=self.get_total_ops_rough(curr_step+1),
+            only_first_half=self.only_first_half
         )
 
         self.current_train_step += 1

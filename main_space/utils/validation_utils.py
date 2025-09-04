@@ -8,13 +8,14 @@ from main_space.utils.settings_utils import get_dataset_config
 from main_space.utils.settings_utils import get_training_config
 
 
-def get_loss_classic(step_num, device, model, trainingConfig, criterion, batch_input_ids, batch_target_ids):
+def get_loss_classic(step_num, device, model, trainingConfig, criterion, batch_input_ids, batch_target_ids, only_first_half):
     with record_function("forward_pass_for_validation"):
         logits, _ = model(batch_input_ids,
                        step_num=step_num,
                        device_type=device.type,
                        amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
-                       precision_dtype=trainingConfig.precision_dtype)
+                       precision_dtype=trainingConfig.precision_dtype,
+                          only_first_half=only_first_half)
 
     with record_function("validation_loss_calculation"):
         per_token_losses = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
@@ -27,13 +28,13 @@ def get_loss_classic(step_num, device, model, trainingConfig, criterion, batch_i
     return overall_loss  #, periodic_losses
 
 
-def make_val_step(model, criterion, batch_input_ids, batch_target_ids, device):
+def make_val_step(model, criterion, batch_input_ids, batch_target_ids, device, only_first_half):
     trainingConfig = get_training_config()
 
     with torch.no_grad():
         with autocast(device_type=device.type, enabled=usesAmpOrNot(trainingConfig.training_precision),
                       dtype=trainingConfig.precision_dtype):
-            val_loss = get_loss_classic(model, device, model, trainingConfig, criterion, batch_input_ids, batch_target_ids)
+            val_loss = get_loss_classic(132, device, model, trainingConfig, criterion, batch_input_ids, batch_target_ids, only_first_half)
 
     return val_loss
 
@@ -55,7 +56,7 @@ def get_next_val_batch(dataset_iter, device, pin_memory_dataloader):
     return input_ids, target_ids
 
 
-def do_validation_set(model, criterion, dataloader, device):
+def do_validation_set(model, criterion, dataloader, device, only_first_half):
     """
     :returns average validation loss of whole validation set
     """
@@ -73,7 +74,7 @@ def do_validation_set(model, criterion, dataloader, device):
                                                    datasetConfig.pin_memory_dataloader)
 
 
-        val_loss = make_val_step(model, criterion, input_ids, target_ids,device)
+        val_loss = make_val_step(model, criterion, input_ids, target_ids,device, only_first_half)
         total_val_loss += val_loss
 
 

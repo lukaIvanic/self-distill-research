@@ -59,14 +59,14 @@ class TrainingConfig:
     class HyperparameterConfig:
 
         def __init__(self):
-            self.run_name = "30M_distill_into_30M_logits_6k_full_adaptable_lr"
+            self.run_name = "2M_only_first_half_for_12k_steps"
             self.vocab_size = 5000  # Dummy vocab size
-            self.d_model = 512  # Embedding dimension / model dimension
-            self.num_heads = 16  # Number of attention heads
-            self.num_layers = 10  # Number of Transformer blocks
-            self.ctx_len = 1024  # Max sequence length for dummy data and positional embeddings
-            self.dropout_rate = 0.0
-            self.attach_aux_heads = False
+            self.d_model = 128  # Embedding dimension / model dimension
+            self.num_heads = 8  # Number of attention heads
+            self.num_layers = 5  # Number of Transformer blocks
+            self.ctx_len = 512  # Max sequence length for dummy data and positional embeddings
+            self.dropout_rate = 0.01
+            self.attach_aux_heads = True
 
     class DistillConfig:
 
@@ -77,13 +77,13 @@ class TrainingConfig:
 
     def __init__(self):
 
-        self.warmup_steps = int(800)
-        self.train_steps = int(6000)
-        self.peak_lr = 8e-4
+        self.warmup_steps = int(2000)
+        self.train_steps = int(12000)
+        self.peak_lr = 1e-3
         self.batch_size = 32
-        self.scheduler_type = "adaptable"  # Options: "cosine", "inverse_sqrt", "linear", "custom", "adaptable"
-        self.min_lr = 8e-5
-        self.max_hidd_loss = 8
+        self.scheduler_type = "cosine"  # Options: "cosine", "inverse_sqrt", "linear", "custom", "adaptable"
+        self.min_lr = 1e-4
+        self.max_hidd_loss = 8  # Only applies for "adaptable" scheduler type
         self.training_precision = "bfloat16"  # Options: "bfloat16", "float16" (uses GradScaler), "float32"
         self.gradient_clip_norm = 1.0
         self.seed = 42
@@ -101,10 +101,16 @@ class TrainingConfig:
         self.scaler = None
         self.initialize_precision()
         self.doesClipGradients = True
-        self.distill_enabled = True
-        self.distill_stop_step = 3000 # After this many steps, loss will be calculated classically
+        self.distill_enabled = False
+        self.distill_stop_step = 1000 # After this many steps, loss will be calculated classically
         self.distill_stop_cooldown_steps = 1 # After self.distill_stop_step num of steps, perform linear cooldown, after which loss will be purely from hard targets
         self.teacher_alias_tag = "30M_classic:run_lc5nraox_step_11999"
+
+        self.half_by_half_training = False # If enabled, will first train the first half_index+1 trans blocks for self.separation_step steps, and then the rest of the transformer blocks for self.train_steps - self.separation_step steps.
+        self.separation_step = 4000 # Num of steps to train the first part of the transformer block
+        self.continue_full_step = 6000 # The step at which the first part of the model will unfreeze, and the whole model will continue to train.
+        self.half_index = 5 # If half_by_half training is enabled, this index represent the last transformer block in the "first half" of the training. After the First half has been trained, the rest of the transformer blocks will be attached newly initialized.
+
 
 
         self.hyperParamConfig = self.HyperparameterConfig()
@@ -209,14 +215,22 @@ class CheckpointConfig:
                                     "30M_distill_into_30M_hidd_6k_adaptable_lr_sqrt",
                                     "30M_distill_into_30M_hidd_6k_adaptable_lr_hard_independent",
                                     "30M_distill_into_30M_hidd_6k_full_adaptable_lr",
-                                    "30M_distill_into_30M_logits_6k_full_adaptable_lr"]
+                                    "30M_distill_into_30M_logits_6k_full_adaptable_lr",
+                                    "30M_classic_first_half",
+                                    "30M_classic_aux_heads",
+                                    "30M_classic_train_4th_aux_head",
+                                    "30M_classic_train_6k",
+                                    "30M_half_half_train",
+                                    "2M_classic",
+                                    "2M_half_half",
+                                    "2M_only_first_half_for_12k_steps"]
 
-        self.artifact_base_name = "30M_distill_into_30M_logits_6k_full_adaptable_lr"  # TODO: fix for consistency
+        self.artifact_base_name = "2M_only_first_half_for_12k_steps"  # TODO: fix for consistency
         self.alias_to_load = None
         if self.artifact_base_name not in self.artifact_base_names:
             raise ValueError("CheckpointConfig.__init__() error, chose invalid artifact base.")
 
-        self.checkpoint_frequency = 11999
+        self.checkpoint_frequency = 12000
 
         self.attempt_load_checkpoint_if_exists= False
         self.strict_state_dict_loading = True

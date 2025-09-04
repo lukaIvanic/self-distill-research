@@ -55,3 +55,13 @@ It seems that no matter the learning rate regime, the newly trained model can't 
 
 Conclusion: An adaptable learning rate seems to be the way to go, since it's tricky to manage distillation loss since it's so fast-changing. It does not fit the usual schedulers such as cosine or inverse square root at all.
 Explanation: The green run, which seems to drop the fastest in the beginning, uses a custom lr scheduler, which was meticulously designed to have the exact learning rate needed for every 500 steps of training. The intermediate runs follow an automatic (cosine modified) learning rate scheduler, which seems to perform better than the custom scheduler in the end. This makes it a much more desirable solution, because it doesn't involve manual adjustments, and depends purely on the expected final loss value. 
+
+---
+
+## Attaching extra layers to an already trained network
+By taking an already trained network, can we boost it's performance by freezing all it's weights except the LMHead, and inserting additional transformer layers before the LMHead? The hope is that by attaching these additional layers, we can get a cheap boost in performance, which reflects something between the "only first part" model size performance, and "first part + additional layers" model size. By doing this, we could perhaps gain the performance that would take the smaller network 80% of it's training, and distill from the new, bigger network, into the smaller network.
+Experiment shows that when naively attaching new layers, the model is highly incentivized to essentially transform them into identity networks, and interfere as little as possible with the residual layout "highway" from the last previously trained layer, to the LMHead. As shown in the weight values below:
+
+![Weight values across training steps of the fourth layer (previously trained)](readme_files/layer_4_weights.png)
+![Weight values across training steps of the sixth layer (attached and post-trained)](readme_files/block_6_weights.png)
+

@@ -29,16 +29,16 @@ def check_and_print_grad_nan_inf(model, step_num):
 
     return found_issue
 
-def get_loss_heads(step_num, device, trainingConfig, model, criterion, batch_input_ids, batch_target_ids):
 
+def get_loss_heads(step_num, device, trainingConfig, model, criterion, batch_input_ids, batch_target_ids,
+                   only_first_half):
     with record_function("forward_pass"):
         logits, aux_logits = model.forward_w_aux(batch_input_ids,
-                       step_num=step_num,
-                       device_type=device.type,
-                       amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
-                       precision_dtype=trainingConfig.precision_dtype)
-
-
+                                                 step_num=step_num,
+                                                 device_type=device.type,
+                                                 amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
+                                                 precision_dtype=trainingConfig.precision_dtype,
+                                                 only_first_half=only_first_half)
 
     with record_function("loss_calculation"):
         main_ce_loss = criterion(logits.view(-1, logits.size(-1)), batch_target_ids.view(-1))
@@ -61,10 +61,9 @@ def get_loss_heads(step_num, device, trainingConfig, model, criterion, batch_inp
                 teacher_probs.view(-1, teacher_probs.size(-1))
             ) * (distillation_temp ** 2)
 
-
-
             aux_ce_loss = criterion(block_aux_logits.view(-1, block_aux_logits.size(-1)),
-                                         batch_target_ids.view(-1))
+                                    batch_target_ids.view(-1))
+
             aux_ce_loss = aux_ce_loss.mean()
             aux_heads_losses.append(aux_ce_loss)
 
@@ -75,18 +74,16 @@ def get_loss_heads(step_num, device, trainingConfig, model, criterion, batch_inp
 
     return total_loss, main_ce_loss, aux_heads_losses
 
-def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_input_ids, batch_target_ids):
 
-
-
+def get_loss_classic(step_num, device, trainingConfig, model, criterion, batch_input_ids, batch_target_ids,
+                     only_first_half=False):
     with record_function("forward_pass"):
         logits, aux_logits = model(batch_input_ids,
-                       step_num=step_num,
-                       device_type=device.type,
-                       amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
-                       precision_dtype=trainingConfig.precision_dtype)
-
-
+                                   step_num=step_num,
+                                   device_type=device.type,
+                                   amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
+                                   precision_dtype=trainingConfig.precision_dtype,
+                                   only_first_half=only_first_half)
 
     with record_function("loss_calculation"):
         # The criterion must have reduction='none' to get per-token losses
@@ -117,19 +114,19 @@ def get_loss_soft(step_num, device, trainingConfig, model, teacher_model, criter
     with record_function("forward_pass_teacher"):
         with torch.no_grad():  # TODO: does this actually do anything?
             teacher_logits, _ = teacher_model(batch_input_ids,
-                                           step_num=step_num,
-                                           device_type=device.type,
-                                           amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
-                                           precision_dtype=trainingConfig.precision_dtype
-                                           )
+                                              step_num=step_num,
+                                              device_type=device.type,
+                                              amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
+                                              precision_dtype=trainingConfig.precision_dtype
+                                              )
 
     with record_function("forward_pass_student"):
         student_logits, _ = model(batch_input_ids,
-                               step_num=step_num,
-                               device_type=device.type,
-                               amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
-                               precision_dtype=trainingConfig.precision_dtype
-                               )
+                                  step_num=step_num,
+                                  device_type=device.type,
+                                  amp_enabled=usesAmpOrNot(trainingConfig.training_precision),
+                                  precision_dtype=trainingConfig.precision_dtype
+                                  )
 
     with record_function("loss_calculation_hard_labels"):
         L_hard = criterion(student_logits.view(-1, student_logits.size(-1)), batch_target_ids.view(-1)).mean()
@@ -212,8 +209,6 @@ def get_loss_distill_hidd_and_logits(step_num, model, teacher_model, criterion, 
         if step_num % 1000 == 0 or step_num == 0:
             print(f"teacher-student indexes: {indexes_teacher}-{indexes_student}")
 
-
-
         for i in range(len(indexes_student)):
             teacher_state = hidd_states_teacher[indexes_teacher[i]]
             student_state = hidd_states_student[indexes_student[i]]
@@ -233,9 +228,6 @@ def get_loss_distill_hidd_and_logits(step_num, model, teacher_model, criterion, 
                 print(f"l_hidd_{i}_item: {l_hidd_item}")
 
             L_hidd_total += L_hidd
-
-
-
 
     ratio_hidd = L_hard.item() / L_hidd_total.item()
     ratio_logits = L_hard.item() / L_logits.item()
@@ -301,8 +293,6 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
         if step_num % 200 == 0 or step_num == 0:
             print(f"teacher-student indexes: {indexes_teacher}-{indexes_student}")
 
-
-
         for i in range(len(indexes_student)):
             teacher_state = hidd_states_teacher[indexes_teacher[i]]
             student_state = hidd_states_student[indexes_student[i]]
@@ -327,6 +317,7 @@ def get_loss_hidd_distill(step_num, model, teacher_model, criterion, batch_input
 
     return L, L_hard, L_hidd_total_org, hidd_loss_ratio
 
+
 def get_hidd_loss_lr_ratio(L_hidd_scalar):
     max_hidd_loss = get_training_config().max_hidd_loss
     L_hidd_scalar = min(L_hidd_scalar, max_hidd_loss)
@@ -338,7 +329,7 @@ def get_hidd_loss_lr_ratio(L_hidd_scalar):
 
     linear_constant = 3
 
-    progress = (L_hidd_scalar-min_hidd_loss)/(max_hidd_loss-min_hidd_loss)
+    progress = (L_hidd_scalar - min_hidd_loss) / (max_hidd_loss - min_hidd_loss)
 
     ratio = linear_constant * progress
 
@@ -348,17 +339,16 @@ def get_hidd_loss_lr_ratio(L_hidd_scalar):
 
 
 def loss_strategy(L_hard, L_hidd_total, step_num):
-
     L_hidd_total_org = L_hidd_total.clone()
 
-    L_hidd_item  = L_hidd_total.item()
+    L_hidd_item = L_hidd_total.item()
     L_hard_item = L_hard.item()
 
     equalizer = L_hard_item / L_hidd_item
     soft_to_hard_ratio = get_hidd_loss_lr_ratio(L_hidd_item)
 
-    L_hidd_total *= equalizer # equalizes vectors to have same length
-    L_hidd_total *= soft_to_hard_ratio # applies ratio how much should distillation be involved
+    L_hidd_total *= equalizer  # equalizes vectors to have same length
+    L_hidd_total *= soft_to_hard_ratio  # applies ratio how much should distillation be involved
 
     distill_utilization = 1.0
     distill_stop_step = get_training_config().distill_stop_step
@@ -389,7 +379,6 @@ def get_loss_attn_distill(step_num, model, criterion, batch_input_ids, batch_tar
 
         teacher_attns = attns_per_block[distillConfig.teacher_index]
         student_attns = attns_per_block[distillConfig.student_index]
-
 
 
 def clip_gradients(model, optimizer):
@@ -433,6 +422,7 @@ def adaptable_lr(loss_item, actual_step_num, optimizer):
 
     return current_actual_lr
 
+
 def make_train_step(step_num,
                     model,
                     teacher_model,
@@ -443,7 +433,8 @@ def make_train_step(step_num,
                     batch_target_ids,
                     wandb_run_obj,
                     avg_val_loss,
-                    total_ops):
+                    total_ops,
+                    only_first_half):
     global logging_loss_accumulator
 
     trainingConfig = get_training_config()
@@ -482,25 +473,25 @@ def make_train_step(step_num,
 
             elif trainingConfig.distillConfig.distill_mode == 'hidd_distill':
                 loss, ce_only_loss, loss_hidd_total, hidd_loss_ratio = get_loss_hidd_distill(actual_step_num,
-                                                                            model,
-                                                                            teacher_model,
-                                                                            criterion,
-                                                                            batch_input_ids,
-                                                                            batch_target_ids)
+                                                                                             model,
+                                                                                             teacher_model,
+                                                                                             criterion,
+                                                                                             batch_input_ids,
+                                                                                             batch_target_ids)
             elif trainingConfig.distillConfig.distill_mode == 'hidd_and_logits_distill':
                 loss, ce_only_loss, loss_hidd_total, loss_soft = get_loss_distill_hidd_and_logits(actual_step_num,
-                                                                            model,
-                                                                            teacher_model,
-                                                                            criterion,
-                                                                            batch_input_ids,
-                                                                            batch_target_ids)
+                                                                                                  model,
+                                                                                                  teacher_model,
+                                                                                                  criterion,
+                                                                                                  batch_input_ids,
+                                                                                                  batch_target_ids)
             elif trainingConfig.distillConfig.distill_mode == 'attn_distill':
                 loss, ce_only_loss, loss_hidd_total, loss_soft = get_loss_distill_hidd_and_logits(actual_step_num,
-                                                                            model,
-                                                                            teacher_model,
-                                                                            criterion,
-                                                                            batch_input_ids,
-                                                                            batch_target_ids)
+                                                                                                  model,
+                                                                                                  teacher_model,
+                                                                                                  criterion,
+                                                                                                  batch_input_ids,
+                                                                                                  batch_target_ids)
 
             else:
                 raise BrokenPipeError(
@@ -512,12 +503,13 @@ def make_train_step(step_num,
             attach_heads = trainingConfig.hyperParamConfig.attach_aux_heads
 
             if attach_heads:
-                loss, ce_only_loss, aux_head_losses = get_loss_heads(actual_step_num, device, trainingConfig, model, criterion,
-                                                     batch_input_ids, batch_target_ids)
+                loss, ce_only_loss, aux_head_losses = get_loss_heads(actual_step_num, device, trainingConfig, model,
+                                                                     criterion,
+                                                                     batch_input_ids, batch_target_ids, only_first_half)
 
             else:
                 loss, periodic_losses = get_loss_classic(actual_step_num, device, trainingConfig, model, criterion,
-                                                     batch_input_ids, batch_target_ids)
+                                                         batch_input_ids, batch_target_ids, only_first_half)
 
                 ce_only_loss = loss
 
@@ -528,8 +520,6 @@ def make_train_step(step_num,
     with record_function("backward_pass"):
         loss.backward()
 
-
-
     check_and_print_grad_nan_inf(model, step_num)
 
     logging_loss_accumulator["ce_only_loss"] += ce_only_loss.item()
@@ -538,7 +528,7 @@ def make_train_step(step_num,
     if loss_hidd_total:
         logging_loss_accumulator["loss_hidd_total"] += (loss_hidd_total / accumulation_steps).item()
     if hidd_loss_ratio:
-        logging_loss_accumulator["hidd_loss_ratio"] += hidd_loss_ratio/accumulation_steps
+        logging_loss_accumulator["hidd_loss_ratio"] += hidd_loss_ratio / accumulation_steps
 
     if (step_num + 1) % accumulation_steps == 0:
         with record_function("gradient_clipping"):
